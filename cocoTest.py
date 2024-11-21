@@ -37,8 +37,8 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 
 # Paths to your files
-ground_truth_file = "ground_truth_annotations.json"
-detection_file = "detection_results.json"
+ground_truth_file = "gt_ann.json"
+detection_file = "detect_ann.json"
 
 # Initialize COCO ground truth and detection
 coco_gt = COCO(ground_truth_file)
