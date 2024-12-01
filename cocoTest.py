@@ -43,6 +43,7 @@ detection_file = "detect_ann.json"
 # Initialize COCO ground truth and detection
 coco_gt = COCO(ground_truth_file)
 coco_dt = coco_gt.loadRes(detection_file)
+
 # Check lengths of keypoints in ground truth
 for annotation in coco_gt.dataset['annotations']:
     print(f"Ground Truth Keypoints Length: {len(annotation['keypoints'])}")
@@ -50,18 +51,23 @@ for annotation in coco_gt.dataset['annotations']:
 # Check lengths of keypoints in detections
 for detection in coco_dt.anns.values():
     print(f"Detection Keypoints Length: {len(detection['keypoints'])}")
+    if any(kp % 3 == 2 and kp not in [0, 1, 2] for kp in annotation['keypoints']):
+        print(f"Invalid visibility flag in ground truth ID {annotation['id']}")
 
 # Check for mismatched keypoints
 for detection in coco_dt.anns.values():
     if len(detection['keypoints']) != 51:  # 17 keypoints * 3 (x, y, visibility)
         print(f"Detection ID {detection['id']} has {len(detection['keypoints'])} keypoints.")
 
+for detection in coco_dt.anns.values():
+    print(f"Detection ID {detection['id']} Score: {detection['score']}")
+
  
 # Initialize COCOeval
 coco_eval = COCOeval(coco_gt, coco_dt, iouType="keypoints")
 
 # Set maxDets to 50
-coco_eval.params.maxDets = [50]  # Set maxDets to 50
+coco_eval.params.maxDets = [5]  # Set maxDets to 5
 
 # Print to confirm
 print("Max Dets:", coco_eval.params.maxDets)
