@@ -67,10 +67,10 @@ for detection in coco_dt.anns.values():
 coco_eval = COCOeval(coco_gt, coco_dt, iouType="keypoints")
 
 # Set maxDets to 50
-coco_eval.params.maxDets = [5]  # Set maxDets to 5
+#coco_eval.params.maxDets = [5]  # Set maxDets to 5
 
 # Print to confirm
-print("Max Dets:", coco_eval.params.maxDets)
+#print("Max Dets:", coco_eval.params.maxDets)
 
 # Specify the image IDs you want to evaluate (or use all available in the ground truth)
 image_ids = sorted(coco_gt.getImgIds())
