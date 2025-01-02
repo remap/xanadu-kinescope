@@ -35,9 +35,8 @@ python fb_sender_example.py
 
 Which yields something like: 
 
-```bash
+```json
 % python fb_sender_example.py     
-
 Refresh Firebase Access Token:
 	Token: ya29.c.c0ASRK0Gbhg_-c5ZvO...
 	Expiry: 2025-01-02 23:21:20.978987-08:00
