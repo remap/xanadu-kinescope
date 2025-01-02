@@ -62,6 +62,8 @@ Firebase async return {'accuracy': 96.69062631341419, 'energy': 58.7631932927484
 Firebase async return {'accuracy': -63.892752110676824, 'energy': 28.344564338497378, 'lag': 2.95005704322611}
 ```
 
+Here's what the keys look like in fb:
+
 ![firebase screenshot](screenshot.png)
 
 
