@@ -1,7 +1,21 @@
 
 
+### Obtain
 
-### Installation
+There is a submodule, so clone or pull accordingly:
+
+```
+git clone --recursive git@github.com:remap/xanadu-kinescope.git
+```
+or 
+```
+git submodule update --init --recursive
+git pull 
+```
+
+### Prep / Installation
+
+Create a virtual environment and install dependencies. 
 
 ```
 cd fb_sender_example/
@@ -10,7 +24,8 @@ source venv/bin/activate
 pip install requests google.auth
 ```
 
-Obtain the secrets file and place in the directory.
+*Obtain the secrets file and place in the directory.*
+
 
 ### Run
 
@@ -21,7 +36,6 @@ python fb_sender_example.py
 Which yields something like: 
 
 ```
-
 % python fb_sender_example.py     
 
 Refresh Firebase Access Token:
