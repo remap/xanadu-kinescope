@@ -4,11 +4,11 @@
 
 There is a submodule, so clone or pull accordingly:
 
-```
+```bash
 git clone --recursive git@github.com:remap/xanadu-kinescope.git
 ```
 or 
-```
+```bash
 git submodule update --init --recursive
 git pull 
 ```
@@ -17,25 +17,25 @@ git pull
 
 Create a virtual environment and install dependencies. 
 
-```
+```bash
 cd fb_sender_example/
 python -m venv venv
 source venv/bin/activate
 pip install requests google.auth
 ```
 
-*Obtain the secrets file and place in the directory.*
+*You must obtain the secrets file and place in the directory.*
 
 
 ### Run
 
-```
+```python
 python fb_sender_example.py
 ```
 
 Which yields something like: 
 
-```
+```bash
 % python fb_sender_example.py     
 
 Refresh Firebase Access Token:
@@ -60,3 +60,7 @@ Firebase async return {'accuracy': 96.69062631341419, 'energy': 58.7631932927484
 {'energy': 28.344564338497378, 'accuracy': -63.892752110676824, 'lag': 2.95005704322611}
 Firebase async return {'accuracy': -63.892752110676824, 'energy': 28.344564338497378, 'lag': 2.95005704322611}
 ```
+
+![firebase screenshot](screenshot.png)
+
+
