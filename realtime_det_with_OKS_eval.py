@@ -447,7 +447,8 @@ def main():
 							#print("\n")
 
 		print("Each Skeleton Accuracy against GT =", accuracy_vals)
-		print("Accuracy", sum(accuracy_vals) / len(accuracy_vals))
+		if len(accuracy_vals) > 0:
+			print("Accuracy", sum(accuracy_vals) / len(accuracy_vals))
 		# Close the camera
 		zed.disable_body_tracking()
 		zed.close()
