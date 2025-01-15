@@ -49,7 +49,7 @@ DONE (t=0.00s).
  Average Recall     (AR) @[ IoU=0.75      | area=   all | maxDets= 20 ] = 1.000
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets= 20 ] = 0.700
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets= 20 ] = -1.000
-PS C:\Users\Admin\Desktop\cocoTest> 
+ 
 
 ### Average Precision (AP)
 
