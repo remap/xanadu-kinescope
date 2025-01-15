@@ -1,12 +1,12 @@
-import numpy as np
+#import numpy as np
 import matplotlib.pyplot as plt
 import json
 
 import pyzed.sl as sl
-import cv2
-import numpy as np
+#import cv2
+#import numpy as np
 import json
-NUM_FRAMES = 5 
+NUM_FRAMES = 15 
 
 # Function to align and scale skeletons
 def align_and_scale_skeletons_flat(flat_kp1, flat_kp2, spine_index=1):
@@ -46,11 +46,9 @@ def align_and_scale_skeletons_flat(flat_kp1, flat_kp2, spine_index=1):
 
 	aligned_flat_kp2 = flat_kp2.copy()
 	
-	print("ing aligned_flat_kp2", aligned_flat_kp2)
 	for i in range(18):
 		x, y, v = aligned_flat_kp2[i * 3:(i * 3) + 3]
 		if v > 0:
-			print("ingrid center1", center1)
 			aligned_flat_kp2[i * 3] += (center1[0] - center2[0])
 			aligned_flat_kp2[i * 3 + 1] += (center1[1] - center2[1])
 
@@ -66,7 +64,7 @@ def align_and_scale_skeletons_flat(flat_kp1, flat_kp2, spine_index=1):
 	return scaled_flat_kp2
 
 
-# Function to extract (x, y) coordinates from a flattened array
+#?# Function to extract (x, y) coordinates from a flattened array -- can optimize?
 def extract_coordinates(flat_keypoints):
 	coords = []
 	for i in range(18):
@@ -94,7 +92,7 @@ def flatten_keypoints_2d(keypoints_2d):
 	return flattened_keypoints
 
 # Function to create the annotation for a single set of keypoints
-def create_annotation(image_id, category_id, keypoints, score):
+def create_det_annotation(score, image_id, category_id, keypoints):
 	del keypoints[3] #remove neck keypoint
 	del keypoints[4]
 	del keypoints[5]
@@ -142,12 +140,12 @@ def plotting_skeletons(keypoints_2d_1, keypoints_2d_2, bounding_box_1, bounding_
 
 	plt.gca().invert_yaxis()
 	plt.title("Skeletons with Bounding Boxes")
-	#!plt.show()
+	plt.show()
 
 #--------------------------------------------------------------------------------Main code--------------------------------------
 
 
-def main_loop(keypoints_2d_1, keypoints_2d_2):
+def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score default to 0.92 when testing from file.
 	"""
 	Flatten keypoint arrays, scale & transpose them, create GT annotation file for I/O to OKS, run OKS. 
 
@@ -167,35 +165,36 @@ def main_loop(keypoints_2d_1, keypoints_2d_2):
 	scaled_flat_kp2 = align_and_scale_skeletons_flat(flat_kp1, flat_kp2)
 	#print("flat2scaled", scaled_flat_kp2)
 
-	keypoints_2d_1 = extract_coordinates(flat_kp1)
-	keypoints_2d_2 = extract_coordinates(scaled_flat_kp2)
+	#?keypoints_2d_1 = extract_coordinates(flat_kp1)
+	keypoints_2d_2 = extract_coordinates(scaled_flat_kp2) #!have to extract scaled.
 
 	#TODO - get bounding box from ZED instead of calculating ourselves.
 	bounding_box_1 = get_bounding_box(keypoints_2d_1)
 	bounding_box_2 = get_bounding_box(keypoints_2d_2)
 
 	plotting_skeletons(keypoints_2d_1, keypoints_2d_2, bounding_box_1, bounding_box_2)
-	'''plt.figure(figsize=(10, 15))
+	#plotting_skeletons(keypoints_2d_1, scaled_flat_kp2, bounding_box_1, bounding_box_2)
+	# plt.figure(figsize=(10, 15))
 
-	for point in keypoints_2d_1:
-		if point is not None:
-			plt.scatter(point[0], point[1], c='red', s=50)
+	# for point in keypoints_2d_1:
+	# 	if point is not None:
+	# 		plt.scatter(point[0], point[1], c='red', s=50)
 
-	for point in keypoints_2d_2:
-		if point is not None:
-			plt.scatter(point[0], point[1], c='green', s=50)
+	# for point in keypoints_2d_2:
+	# 	if point is not None:
+	# 		plt.scatter(point[0], point[1], c='green', s=50)
 
-	if bounding_box_1:
-		x, y, w, h = bounding_box_1
-		plt.gca().add_patch(plt.Rectangle((x, y), w, h, edgecolor='red', facecolor='none', linewidth=2))
+	# if bounding_box_1:
+	# 	x, y, w, h = bounding_box_1
+	# 	plt.gca().add_patch(plt.Rectangle((x, y), w, h, edgecolor='red', facecolor='none', linewidth=2))
 
-	if bounding_box_2:
-		x, y, w, h = bounding_box_2
-		plt.gca().add_patch(plt.Rectangle((x, y), w, h, edgecolor='blue', facecolor='none', linewidth=2))
+	# if bounding_box_2:
+	# 	x, y, w, h = bounding_box_2
+	# 	plt.gca().add_patch(plt.Rectangle((x, y), w, h, edgecolor='blue', facecolor='none', linewidth=2))
 
-	plt.gca().invert_yaxis()
-	plt.title("Skeletons with Bounding Boxes")
-	plt.show()'''
+	# plt.gca().invert_yaxis()
+	# plt.title("Skeletons with Bounding Boxes")
+	# plt.show()
 
 	#--------------------------------------------------------------------------------------
 	#Create gt ann
@@ -269,7 +268,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2):
 	#--------------------------------------------------------------------------------------
 	# Create annotations for each set of keypoints
 	annotations = [
-		create_annotation(image_id=1, category_id=1, keypoints=scaled_flat_kp2, score=0.92)
+		create_det_annotation(score, image_id=1, category_id=1, keypoints=scaled_flat_kp2)
 	]
 
 	# Write the annotations to a JSON file
@@ -342,7 +341,7 @@ def run_coco_eval():
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 NUM_PARTICIPANTS = 6
-EVAL_FILE = False #either eval file or eval from camera directly
+EVAL_FILE = True #either eval file or eval from camera directly
 
 def eval_skeleton_loop(vals, keypoints_2d_gt, keypoints_2d): 
 	main_loop(keypoints_2d_gt, keypoints_2d)
@@ -351,106 +350,108 @@ def eval_skeleton_loop(vals, keypoints_2d_gt, keypoints_2d):
 
 
 def main():
-	vals = []
+	accuracy_vals = []
 
-	# Create a Camera object
-	zed = sl.Camera()
+	if not EVAL_FILE:
+		# Create a Camera object
+		zed = sl.Camera()
 
-	# Create a InitParameters object and set configuration parameters
-	init_params = sl.InitParameters()
-	init_params.camera_resolution = sl.RESOLUTION.HD720  # Use HD720 video mode
-	init_params.depth_mode = sl.DEPTH_MODE.PERFORMANCE
-	init_params.coordinate_units = sl.UNIT.METER
-	init_params.sdk_verbose = 1
+		# Create a InitParameters object and set configuration parameters
+		init_params = sl.InitParameters()
+		init_params.camera_resolution = sl.RESOLUTION.HD720  # Use HD720 video mode
+		init_params.depth_mode = sl.DEPTH_MODE.PERFORMANCE
+		init_params.coordinate_units = sl.UNIT.METER
+		init_params.sdk_verbose = 1
 
-	# Open the camera
-	err = zed.open(init_params)
-	if err != sl.ERROR_CODE.SUCCESS:
-		print("Camera Open : "+repr(err)+". Exit program.")
-		exit()
-
-	body_params = sl.BodyTrackingParameters()
-	# Different model can be chosen, optimizing the runtime or the accuracy
-	body_params.detection_model = sl.BODY_TRACKING_MODEL.HUMAN_BODY_FAST
-	body_params.enable_tracking = True
-	body_params.enable_segmentation = False
-	# Optimize the person joints position, requires more computations
-	body_params.enable_body_fitting = True
-
-	if body_params.enable_tracking:
-		positional_tracking_param = sl.PositionalTrackingParameters()
-		# positional_tracking_param.set_as_static = True
-		positional_tracking_param.set_floor_as_origin = True
-		zed.enable_positional_tracking(positional_tracking_param)
-
-		print("Body tracking: Loading Module...")
-
-		err = zed.enable_body_tracking(body_params)
+		# Open the camera
+		err = zed.open(init_params)
 		if err != sl.ERROR_CODE.SUCCESS:
-			print("Enable Body Tracking : "+repr(err)+". Exit program.")
-			zed.close()
+			print("Camera Open : "+repr(err)+". Exit program.")
 			exit()
-		bodies = sl.Bodies()
-		body_runtime_param = sl.BodyTrackingRuntimeParameters()
-		# For outdoor scene or long range, the confidence should be lowered to avoid missing detections (~20-30)
-		# For indoor scene or closer range, a higher confidence limits the risk of false positives and increase the precision (~50+)
-		body_runtime_param.detection_confidence_threshold = 40
-		
-	#Capture the data.
-	for _ in range(NUM_FRAMES): #setup num frames
-		if zed.grab() == sl.ERROR_CODE.SUCCESS:
-			err = zed.retrieve_bodies(bodies, body_runtime_param)
-			if bodies.is_new:
-				body_array = bodies.body_list
-				print(str(len(body_array)) + " Person(s) detected\n") 
 
-				keypoints_gt = []
-				for idx, body in enumerate(body_array):
- 					#!skip if 1) not OK status or 2) conf < certain threshold?? not sure on this for now.
-					print(f"Person {idx + 1} attributes:")
-					print(" Confidence (" + str(int(body.confidence)) + "/100)")
-                    #TODO: if confidence??
+		body_params = sl.BodyTrackingParameters()
+		# Different model can be chosen, optimizing the runtime or the accuracy
+		body_params.detection_model = sl.BODY_TRACKING_MODEL.HUMAN_BODY_FAST
+		body_params.enable_tracking = True
+		body_params.enable_segmentation = False
+		# Optimize the person joints position, requires more computations
+		body_params.enable_body_fitting = True
 
-					flattened_keypoints = []
- 
-					if body_params.enable_tracking:
-						print(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state))
-						if repr(body.tracking_state) != "OK":
-							continue
-                    
-                    #!process bounding boxes, keypoints, conf score, area, width, height
-                    #can transport and streamline these processes from the ipynb file
-                    # for it in body.keypoint_2d:
-                        #     print("    " + str(it))
-                        #     file.write("    " + str(it) + "\n")
+		if body_params.enable_tracking:
+			positional_tracking_param = sl.PositionalTrackingParameters()
+			# positional_tracking_param.set_as_static = True
+			positional_tracking_param.set_floor_as_origin = True
+			zed.enable_positional_tracking(positional_tracking_param)
 
-                    #!Flatten keypoints
-						# Flattened keypoints array with visibility flag `2` and removing keypoint at index 1
-						#flattened_keypoints = []
-						for idx, kp in enumerate(body.keypoint_2d):
-							#!!if idx == 1:  # Skip the neck
-							#!	continue
-							flattened_keypoints.append([kp[0], kp[1]])  # Append x, y, and visibility
-							print("ingrid kp", kp)
+			print("Body tracking: Loading Module...")
 
-						# Print the flattened array
-						print("ingrid flat key", flattened_keypoints)
+			err = zed.enable_body_tracking(body_params)
+			if err != sl.ERROR_CODE.SUCCESS:
+				print("Enable Body Tracking : "+repr(err)+". Exit program.")
+				zed.close()
+				exit()
+			bodies = sl.Bodies()
+			body_runtime_param = sl.BodyTrackingRuntimeParameters()
+			# For outdoor scene or long range, the confidence should be lowered to avoid missing detections (~20-30)
+			# For indoor scene or closer range, a higher confidence limits the risk of false positives and increase the precision (~50+)
+			body_runtime_param.detection_confidence_threshold = 40
+			
+		#Capture the data.
+		for _ in range(NUM_FRAMES): #setup num frames
+			if zed.grab() == sl.ERROR_CODE.SUCCESS:
+				err = zed.retrieve_bodies(bodies, body_runtime_param)
+				if bodies.is_new:
+					body_array = bodies.body_list
+					print(str(len(body_array)) + " Person(s) detected\n") 
 
-                    #TODO: put right bodies in corresponding JSON files, right now: 
-                    #1. First Person is GT_aann
-                    #2. Everyone else is a detection
-					if idx == 0:
-						print("index is found 0")
-						keypoints_gt = flattened_keypoints.copy()
-					else: #otherwise we open a different file
-						eval_skeleton_loop(vals, keypoints_gt, flattened_keypoints)
-						#file.write("\n")
-						#print("\n")
+					keypoints_gt = []
+					for idx, body in enumerate(body_array):
+						#!skip if 1) not OK status or 2) conf < certain threshold?? not sure on this for now.
+						print(f"Person {idx + 1} attributes:")
+						print(" Confidence (" + str(int(body.confidence)) + "/100)")
+						#TODO: if confidence??
 
-	print("Each Skeleton Accuracy against GT =", vals)
-	# Close the camera
-	zed.disable_body_tracking()
-	zed.close()
+						gt_keypoints = []
+	
+						if body_params.enable_tracking:
+							print(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state))
+							if repr(body.tracking_state) != "OK":
+								continue
+						
+						#!process bounding boxes, keypoints, conf score, area, width, height
+						#can transport and streamline these processes from the ipynb file
+						# for it in body.keypoint_2d:
+							#     print("    " + str(it))
+							#     file.write("    " + str(it) + "\n")
+
+						#!Flatten keypoints
+							# Flattened keypoints array with visibility flag `2` and removing keypoint at index 1
+							#flattened_keypoints = []
+							for _, kp in enumerate(body.keypoint_2d):
+								#!!if idx == 1:  # Skip the neck
+								#!	continue
+								gt_keypoints.append([kp[0], kp[1]])  # Append x, y, and visibility
+								print("ingrid kp", kp)
+
+							# Print the flattened array
+							print("ingrid flat key", gt_keypoints)
+
+						#TODO: put right bodies in corresponding JSON files, right now: 
+						#1. First Person is GT_aann
+						#2. Everyone else is a detection
+						print("ingrid vindex", idx)
+						if idx == 0:
+							print("index is found 0")
+							keypoints_gt = gt_keypoints.copy()
+						else: #otherwise we open a different file
+							eval_skeleton_loop(accuracy_vals, keypoints_gt, gt_keypoints)
+							#file.write("\n")
+							#print("\n")
+
+		print("Each Skeleton Accuracy against GT =", accuracy_vals)
+		# Close the camera
+		zed.disable_body_tracking()
+		zed.close()
 
 
 	# Sample 2D keypoints
@@ -518,15 +519,16 @@ def main():
 		]
 
 		#TODO - loop with incoming ZED data (loop per gt / per frame)
-		vals = []
-		eval_skeleton_loop(vals, keypoints_2d_1, keypoints_2d_2)
-		eval_skeleton_loop(vals, keypoints_2d_1, keypoints_2d_3)
+		accuracy_vals = []
+		eval_skeleton_loop(accuracy_vals, keypoints_2d_1, keypoints_2d_2)
+		eval_skeleton_loop(accuracy_vals, keypoints_2d_1, keypoints_2d_3)
 		#   main_loop(keypoints_2d_1, keypoints_2d_2)
 		#   vals.append(run_coco_eval())
 		#   main_loop(keypoints_2d_1, keypoints_2d_3)
 		#   vals.append(run_coco_eval())
 
-		print("Each Skeleton Accuracy against GT =", vals)
+		print("Each Skeleton Accuracy against GT =", accuracy_vals)
+		print("Accuracy", sum(accuracy_vals) / len(accuracy_vals))
 
 
 if __name__ == "__main__":
