@@ -6,7 +6,7 @@ import pyzed.sl as sl
 #import cv2
 #import numpy as np
 import json
-NUM_FRAMES = 15 
+NUM_FRAMES = 50
 
 # Function to align and scale skeletons
 def align_and_scale_skeletons_flat(flat_kp1, flat_kp2, spine_index=1):
@@ -172,7 +172,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	bounding_box_1 = get_bounding_box(keypoints_2d_1)
 	bounding_box_2 = get_bounding_box(keypoints_2d_2)
 
-	plotting_skeletons(keypoints_2d_1, keypoints_2d_2, bounding_box_1, bounding_box_2)
+	#!plotting_skeletons(keypoints_2d_1, keypoints_2d_2, bounding_box_1, bounding_box_2)
 	#plotting_skeletons(keypoints_2d_1, scaled_flat_kp2, bounding_box_1, bounding_box_2)
 	# plt.figure(figsize=(10, 15))
 
@@ -334,6 +334,7 @@ def run_coco_eval():
 
 	# Extract the first AP value
 	average_precision = coco_eval.stats[0]  # This corresponds to AP @[ IoU=0.50:0.95 | area=all | maxDets=20 ]
+	#!round(average_precision, 2)
 	print(f"Pulled Out Average Precision Stat (AP) = {average_precision}")
 	return average_precision
 
@@ -341,7 +342,7 @@ def run_coco_eval():
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 NUM_PARTICIPANTS = 6
-EVAL_FILE = True #either eval file or eval from camera directly
+EVAL_FILE = False #either eval file or eval from camera directly
 
 def eval_skeleton_loop(vals, keypoints_2d_gt, keypoints_2d): 
 	main_loop(keypoints_2d_gt, keypoints_2d)
@@ -431,7 +432,6 @@ def main():
 								#!!if idx == 1:  # Skip the neck
 								#!	continue
 								gt_keypoints.append([kp[0], kp[1]])  # Append x, y, and visibility
-								print("ingrid kp", kp)
 
 							# Print the flattened array
 							print("ingrid flat key", gt_keypoints)
@@ -439,9 +439,7 @@ def main():
 						#TODO: put right bodies in corresponding JSON files, right now: 
 						#1. First Person is GT_aann
 						#2. Everyone else is a detection
-						print("ingrid vindex", idx)
 						if idx == 0:
-							print("index is found 0")
 							keypoints_gt = gt_keypoints.copy()
 						else: #otherwise we open a different file
 							eval_skeleton_loop(accuracy_vals, keypoints_gt, gt_keypoints)
@@ -449,6 +447,7 @@ def main():
 							#print("\n")
 
 		print("Each Skeleton Accuracy against GT =", accuracy_vals)
+		print("Accuracy", sum(accuracy_vals) / len(accuracy_vals))
 		# Close the camera
 		zed.disable_body_tracking()
 		zed.close()
