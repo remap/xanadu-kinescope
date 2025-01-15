@@ -2,7 +2,7 @@
 
 ### Obtain
 
-There is a submodule, so clone or pull accordingly:
+There is a submodule, so clone or pull accordingly (works for Ingrid from within the venv and in the fb_sender_example directory):
 
 ```bash
 git clone --recursive git@github.com:remap/xanadu-kinescope.git
