@@ -29,6 +29,12 @@ pip install requests google.auth
 
 ### Run
 
+If you alreaady have 'venv' installed and you just want to switch into it, first run 
+```Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine``` 
+and then 
+```.\venv\Scripts\Activate``` 
+then run the below Python command.
+
 ```python
 python fb_sender_example.py
 ```
