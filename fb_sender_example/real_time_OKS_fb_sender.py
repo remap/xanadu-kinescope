@@ -25,7 +25,7 @@ import pyzed.sl as sl
 #import cv2
 #import numpy as np
 import json
-NUM_FRAMES = 50
+NUM_FRAMES = 5
 
 def fb_callback(result):
     print("Firebase async return", result)
@@ -400,7 +400,7 @@ def main():
         SECRETS_FILE, scopes=scopes)
 	fb = fb_authsteps(fb_credentials)
 	
-	data = {"energy": [], "accuracy": [], "lag": []}
+	data = {"energy": 0, "accuracy": 0, "lag": 0}
 	data["energy"] = random.uniform(-100.0, 100.0)
 	data["lag"] = random.uniform(-100.0, 100.0)
 	#!accuracy_vals = []
@@ -452,6 +452,7 @@ def main():
 		#Capture the data.
 		for _ in range(NUM_FRAMES): #setup num frames
 			accuracy_vals = [] #!record all ppl in frame then avg it out.
+			velocity_vals = []
 			if zed.grab() == sl.ERROR_CODE.SUCCESS:
 				err = zed.retrieve_bodies(bodies, body_runtime_param)
 				if bodies.is_new:
@@ -464,6 +465,8 @@ def main():
 						print(f"Person {idx + 1} attributes:")
 						print(" Confidence (" + str(int(body.confidence)) + "/100)")
 						#TODO: if confidence??
+						for v in body.velocity:
+							velocity_vals.append(v)
 
 						gt_keypoints = []
 	
@@ -503,9 +506,13 @@ def main():
 		
 			accuracy = 0
 			if len(accuracy_vals) > 0:
-				accuracy = sum(accuracy_vals) / len(accuracy_vals)
+				accuracy = 100 * ( sum(accuracy_vals) / len(accuracy_vals) )
 				print("Accuracy", accuracy)
-			data["accuracy"] = accuracy
+			print("ingrid velocity vals", velocity_vals)
+			if len(velocity_vals) > 0:
+				velocity = sum(x * 1_000 for x in velocity_vals)
+				print("Velocity", velocity)
+			data["energy"] = velocity
 			print("frame data", data)
 			# this updates a set of keys with the values
 			result = fb.put_async(FB_NAMESPACE, "data", data, callback=fb_callback)
