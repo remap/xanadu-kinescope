@@ -25,7 +25,7 @@ import pyzed.sl as sl
 #import cv2
 #import numpy as np
 import json
-NUM_FRAMES = 5
+NUM_FRAMES = 25
 
 def fb_callback(result):
     print("Firebase async return", result)
@@ -491,6 +491,7 @@ def main():
 
 							# Print the flattened array
 							print("ingrid flat key", gt_keypoints)
+							#print("ingrid bounding box?", body.bounding_box_2d)
 
 						#TODO: put right bodies in corresponding JSON files, right now: 
 						#1. First Person is GT_aann
@@ -507,11 +508,12 @@ def main():
 			accuracy = 0
 			if len(accuracy_vals) > 0:
 				accuracy = 100 * ( sum(accuracy_vals) / len(accuracy_vals) )
-				print("Accuracy", accuracy)
-			print("ingrid velocity vals", velocity_vals)
+				#print("Accuracy", accuracy)
+			data["accuracy"] = accuracy
+			#print("ingrid velocity vals", velocity_vals)
 			if len(velocity_vals) > 0:
 				velocity = sum(x * 1_000 for x in velocity_vals)
-				print("Velocity", velocity)
+				#print("Velocity", velocity)
 			data["energy"] = velocity
 			print("frame data", data)
 			# this updates a set of keys with the values
