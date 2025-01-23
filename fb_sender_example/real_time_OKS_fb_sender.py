@@ -401,8 +401,8 @@ def main():
 	fb = fb_authsteps(fb_credentials)
 	
 	data = {"energy": 0, "accuracy": 0, "lag": 0}
-	data["energy"] = random.uniform(-100.0, 100.0)
-	data["lag"] = random.uniform(-100.0, 100.0)
+	#data["energy"] = random.uniform(-100.0, 100.0)
+	#data["lag"] = random.uniform(0.0, 1.0)
 	#!accuracy_vals = []
 
 	if not EVAL_FILE:
@@ -507,14 +507,15 @@ def main():
 		
 			accuracy = 0
 			if len(accuracy_vals) > 0:
-				accuracy = 100 * ( sum(accuracy_vals) / len(accuracy_vals) )
+				accuracy = ( sum(accuracy_vals) / len(accuracy_vals) )
 				#print("Accuracy", accuracy)
 			data["accuracy"] = accuracy
 			#print("ingrid velocity vals", velocity_vals)
 			if len(velocity_vals) > 0:
-				velocity = sum(x * 1_000 for x in velocity_vals)
+				velocity = abs(sum(x * 10 for x in velocity_vals))
 				#print("Velocity", velocity)
 			data["energy"] = velocity
+			data["lag"] = random.uniform(0.0, 1.0)
 			print("frame data", data)
 			# this updates a set of keys with the values
 			result = fb.put_async(FB_NAMESPACE, "data", data, callback=fb_callback)
