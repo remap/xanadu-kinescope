@@ -13,6 +13,8 @@ from concurrent.futures import ThreadPoolExecutor
 import base64
 from bs4 import BeautifulSoup
 from jinja2 import Template
+import argparse
+from types import SimpleNamespace
 
 ## Set up logger borrowed from Hermes
 ##
@@ -242,12 +244,17 @@ def process_pipeline(image_collection, client, config):
 # Firebase event listener
 # Expected incoming format is either a string with a single image or a json-formatted array
 #
-def listener(event, status, config, client):
-    if config["suppress_first_run"] and status["runs"]==-1:
-        #logger.info("Suppressing first run")
-        status["runs"]=0
-        return
+def listener(event, status, config, client, testURL=None):
 
+    if not testURL is None:
+        logger.warning(f"Invoked with test URL: {testURL}.")
+        event = SimpleNamespace(data=testURL)
+        status["runs"] = 0
+    else:
+        if config["suppress_first_run"] and status["runs"]==-1:
+            #logger.info("Suppressing first run")
+            status["runs"]=0
+            return
 
     if not isinstance(event.data, str):
         logger.info(f"Listener {config['fb_key']}: Data not a string, returning.  Received: {event.data}")
@@ -283,6 +290,15 @@ def signal_handler(sig, frame, stop_event, listener_thread):
     sys.exit(0)
 
 def main():
+
+    title = "Choreography Oracle (Kinescope)"
+    # Use argparse to handle command line arguments
+    parser = argparse.ArgumentParser(description=title)
+    parser.add_argument('testurl', nargs='?', type=str, help='url to test and quit', default=None)
+    args = parser.parse_args()
+
+    logger.info(title)
+
     config = {
         "openai_config_path": "xanadu-secret-openai.json",
         "folder_path": "tmp_images",
@@ -298,12 +314,7 @@ def main():
         "runs": -1
     }
 
-    # Init firebase
-    initialize_firebase(config)
-    ref = db.reference(config['fb_key'])
-    if ref is None:
-        logging.error("Could not create firebase client.")
-        sys.exit(0)
+
 
     # Init OpenAI
     with open(config['openai_config_path']) as f:
@@ -313,6 +324,19 @@ def main():
     if client is None:
         logging.error("Could not create OpenAI client.")
         sys.exit(0)
+
+
+    if not args.testurl is None:
+        listener(None,status,config,client,testURL=args.testurl)
+        sys.exit(0)
+
+    # Init firebase
+    initialize_firebase(config)
+    ref = db.reference(config['fb_key'])
+    if ref is None:
+        logging.error("Could not create firebase client.")
+        sys.exit(0)
+
     # Listen for new URLs
     #
     stop_event = Event()
