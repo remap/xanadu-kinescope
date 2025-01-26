@@ -136,7 +136,7 @@ def process_pipeline(image_collection, client, config):
     ## Ouput: HTML WITH CHOREO
     steps = [
         {
-            "description": "Generate an ancient Greek poem. Images are added to this step later.",
+            "description": "Generate an ancient Greek poem.",
             "prompt": [
                 {"type": "text",
                  "text": """
@@ -242,11 +242,11 @@ def process_pipeline(image_collection, client, config):
 # Expected incoming format is either a string with a single image or a json-formatted array
 #
 def listener(event, status, config, client):
-    if config["suppress_first_run"] and status["runs"]==0:
-        logger.info("Suppressing first run")
+    if config["suppress_first_run"] and status["runs"]==-1:
+        #logger.info("Suppressing first run")
+        status["runs"]=0
         return
     else:
-        logger.info("Running on current data value, set 'suppress_first_run' to True in config to skip.")
         status["runs"] +=1
         logger.info(f"Listener, run {status['runs']} {event.data}")
 
@@ -254,6 +254,7 @@ def listener(event, status, config, client):
         logger.info(f"Listener data not a string, returning.  Received: {event.data}")
         return
     try:
+        if len(event.data.strip()) == 0: return
         files = json.loads(event.data)
         if not isinstance(files, list):
             logger.info(f"Listener data is JSON but {type(files)} and not a list, returning.  Received: {files}")
@@ -285,10 +286,10 @@ def main():
         "thread_pool_size": 5,
         "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
         "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
-        "suppress_first_run": False  # Skips a run based on the first keys encountered on startup
+        "suppress_first_run": True  # Skips a run based on the first keys encountered on startup
     }
     status = {
-        "runs": 0
+        "runs": -1
     }
 
     # Init firebase
