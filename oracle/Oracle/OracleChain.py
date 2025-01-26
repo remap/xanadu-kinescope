@@ -74,13 +74,11 @@ def download_images(image_urls, folder_path, max_threads):
                         file.write(response.content)
                 else:
                     logger.warning(f"URL does not point to an image: {url}")
-            logger.info(f"Downladed {url} to {image_path}")
+            logger.info(f"Downloaded {url} to {image_path}")
 
         except Exception as e:
             logger.error(f"Error downloading image: {e}")
 
-    # TODO: How do we know it is complete?
-    #
     with ThreadPoolExecutor(max_threads) as executor:
         for i, url in enumerate(image_urls):
             executor.submit(download_image, url, i)
