@@ -1,0 +1,115 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riverbank Radiance Jazzercise Choreography</title>
+</head>
+<body>
+    <h1>Riverbank Radiance Jazzercise Choreography</h1>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Section</th>
+                <th>Duration</th>
+                <th>Moves</th>
+                <th>Inspiration</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Intro</td>
+                <td>30 seconds</td>
+                <td>
+                    <ul>
+                        <li>Stand with feet hip-width apart, soft knees.</li>
+                        <li>Reach arms overhead with fingers spread wide, inhale deeply.</li>
+                        <li>Exhale, sweep arms down and lean forward, imagining reaching into a river.</li>
+                    </ul>
+                </td>
+                <td>Calm and grounded start</td>
+            </tr>
+            <tr>
+                <td>Verse 1</td>
+                <td>1 minute</td>
+                <td>
+                    <ul>
+                        <li>Step-touch to the right, gentle waves with arms, 8 counts.</li>
+                        <li>Add a soft shoulder roll as you step, maintain fluid motion, 8 counts.</li>
+                        <li>Repeat step-touch to the left, keeping arms flowing, 8 counts.</li>
+                        <li>Incorporate gentle head tilts side to side, matching the flow, 8 counts.</li>
+                    </ul>
+                </td>
+                <td>Flowing water and gentle waves</td>
+            </tr>
+            <tr>
+                <td>Chorus</td>
+                <td>1 minute</td>
+                <td>
+                    <ul>
+                        <li>Grapevine right with an overhead clap on the fourth count, 8 counts.</li>
+                        <li>Grapevine left, same overhead clap on the fourth count, 8 counts.</li>
+                        <li>March on the spot, lift knees high, arms in a wide circle, 8 counts.</li>
+                        <li>Open arms wide and twist torso side to side, echoing wind, 8 counts.</li>
+                    </ul>
+                </td>
+                <td>Energetic and open movements</td>
+            </tr>
+            <tr>
+                <td>Verse 2</td>
+                <td>1 minute</td>
+                <td>
+                    <ul>
+                        <li>Step right and circle hips twice, hands on hips, 8 counts.</li>
+                        <li>Step left and circle hips twice, hands on hips, 8 counts.</li>
+                        <li>Extend right foot forward, point toe, arms sweep up to the left, 4 counts.</li>
+                        <li>Extend left foot forward, point toe, arms sweep up to the right, 4 counts.</li>
+                    </ul>
+                </td>
+                <td>Graceful hip and arm flows</td>
+            </tr>
+            <tr>
+                <td>Bridge</td>
+                <td>30 seconds</td>
+                <td>
+                    <ul>
+                        <li>March forward for 4 steps, reaching hands up like catching light, 4 counts.</li>
+                        <li>March back for 4 steps, gently lowering hands, 4 counts.</li>
+                        <li>Two-step turn to the right, arms in a circle like a gentle breeze, 8 counts.</li>
+                        <li>Two-step turn to the left, continuing the circular breeze motion, 8 counts.</li>
+                    </ul>
+                </td>
+                <td>Moving and reaching, turning like the wind</td>
+            </tr>
+            <tr>
+                <td>Chorus (repeat)</td>
+                <td>1 minute</td>
+                <td>
+                    <ul>
+                        <li>Grapevine right with an overhead clap on the fourth count, 8 counts.</li>
+                        <li>Grapevine left, same overhead clap on the fourth count, 8 counts.</li>
+                        <li>March on the spot, lifting knees high, arms in a wide circle, 8 counts.</li>
+                        <li>Open arms wide and twist torso side to side, echoing wind, 8 counts.</li>
+                    </ul>
+                </td>
+                <td>Re-energizing with familiar movements</td>
+            </tr>
+            <tr>
+                <td>Outro</td>
+                <td>30 seconds</td>
+                <td>
+                    <ul>
+                        <li>Stand with feet wide, sway side to side, arms flowing like a river, 8 counts.</li>
+                        <li>Slowly bring arms down as you step feet together, closing eyes, 8 counts.</li>
+                        <li>Inhale deeply, extend arms into a wide hug, 4 counts.</li>
+                        <li>Exhale, relax arms down at sides, smile gently, 4 counts.</li>
+                    </ul>
+                </td>
+                <td>Calm closure and gentle conclusion</td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
+```

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "default": {
+      "format": "[%(asctime)s] %(name)s: %(levelname)s: %(message)s"
+    },
+    "color": {
+      "()": "__main__.ColorFormatter",
+      "format": "[%(asctime)s] %(name)s: %(levelname)s: %(message)s"
+    }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "formatter": "color",
+      "level": "DEBUG"
+    },
+    "file": {
+      "class": "logging.FileHandler",
+      "filename": "Hermes.log",
+      "formatter": "default",
+      "level": "DEBUG"
+    }
+  },
+  "root": {
+    "handlers": [
+      "console",
+      "file"
+    ],
+    "level": "INFO"
+  }
+}

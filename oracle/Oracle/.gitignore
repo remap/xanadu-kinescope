@@ -1,0 +1,4 @@
+.idea/*
+xanadu-secret-*
+*.log
+tmp_images/*
