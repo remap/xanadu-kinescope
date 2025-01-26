@@ -124,7 +124,8 @@ def writeHTML(choices):
     k = 0
     for choice in choices:
         filename = f"choreo_table{k}.html"
-        logger.info(f"Writing choice {k} as {filename} ")
+        path = Path(filename).resolve().as_uri()
+        logger.info(f"Writing choice {k} as {filename}.  {path} ")
         writeCleanHTML(choice.message.content, filename)
         k += 1
 
@@ -246,32 +247,37 @@ def listener(event, status, config, client):
         #logger.info("Suppressing first run")
         status["runs"]=0
         return
-    else:
-        status["runs"] +=1
-        logger.info(f"Listener, run {status['runs']} {event.data}")
+
 
     if not isinstance(event.data, str):
-        logger.info(f"Listener data not a string, returning.  Received: {event.data}")
+        logger.info(f"Listener {config['fb_key']}: Data not a string, returning.  Received: {event.data}")
         return
     try:
-        if len(event.data.strip()) == 0: return
+        if len(event.data.strip()) == 0:
+            logger.info(f"Listener {config['fb_key']}: Data is empty.")
+            return
         files = json.loads(event.data)
         if not isinstance(files, list):
-            logger.info(f"Listener data is JSON but {type(files)} and not a list, returning.  Received: {files}")
+            logger.info(f"Listener {config['fb_key']}: Data is JSON but {type(files)} and not a list, returning.  Received: {files}")
             return
     except:
         files = [event.data]
+
+
+    status["runs"] +=1
+    logger.info(f"Listener {config['fb_key']}: Run {status['runs']} {event.data}")
+
 
     # Get the images
     image_collection = download_images(files, config['folder_path'], config['thread_pool_size'])
 
     # Run the chain
     result = process_pipeline(image_collection, client, config)
-    logger.info("Completed process_pipeline, waiting for new urls...")
+    logger.info(f"Listener {config['fb_key']}: Completed process_pipeline, waiting for new urls...")
 
 
 def signal_handler(sig, frame, stop_event, listener_thread):
-    logger.info("Terminating listener...")
+    logger.info(f"Terminating listener {config['fb_key']}...")
     stop_event.set()
     listener_thread.join()
     sys.exit(0)
@@ -295,17 +301,23 @@ def main():
     # Init firebase
     initialize_firebase(config)
     ref = db.reference(config['fb_key'])
+    if ref is None:
+        logging.error("Could not create firebase client.")
+        sys.exit(0)
 
     # Init OpenAI
     with open(config['openai_config_path']) as f:
         openai_config = json.load(f)
     config["openai_api_key"] = openai_config["apiKey"]
     client = OpenAI(api_key=config["openai_api_key"])
-
+    if client is None:
+        logging.error("Could not create OpenAI client.")
+        sys.exit(0)
     # Listen for new URLs
     #
     stop_event = Event()
     listener_thread = Thread(target=ref.listen, args=(lambda event: listener(event, status, config, client),))
+    logging.info(f"Starting firebase listener for path {config['fb_key']}.")
     listener_thread.start()
     signal.signal(signal.SIGINT, lambda sig, frame: signal_handler(sig, frame, stop_event, listener_thread))
     while not stop_event.is_set():
