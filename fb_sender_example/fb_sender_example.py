@@ -11,7 +11,7 @@ SECRETS_FILE = "../xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json"
 FB_NAMESPACE = "/xanadu/fb_sender_example"
 FB_DB_URL = "https://xanadu-f5762-default-rtdb.firebaseio.com"
 
-CONSOLE_PRINT = True
+CONSOLE_PRINT = False
 PERIOD_SEC = 1.0/60.0 # 60 fps
 
 def main():
@@ -29,9 +29,9 @@ def main():
     T0 = time.time()
     while True:
         start_time = time.time() - T0
-        data["energy"] = random.uniform(-100.0, 100.0)
-        data["accuracy"] = random.uniform(-100.0, 100.0)
-        data["lag"] = random.uniform(-100.0, 100.0)
+        data["energy"] = random.uniform(0, 1.0)
+        data["accuracy"] = random.uniform(0, 1.0)
+        data["lag"] = random.uniform(0.0, 1.0)
         ref.set(
             {"data": data}
         )
