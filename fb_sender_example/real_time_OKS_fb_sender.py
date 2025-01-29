@@ -1,6 +1,7 @@
 import random
 import time
 import threading
+import math
 
 # load firebase client library from our submodule (supports anon auth)
 # based on https://bitbucket.org/joetilsed/firebase/src/master/
@@ -13,9 +14,15 @@ from google.oauth2 import service_account
 from google.auth.transport.requests import AuthorizedSession
 import uuid
 
+import firebase_admin  # pip install firebase-admin
+from firebase_admin import credentials, db
+
 SECRETS_FILE = "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json"
 FB_NAMESPACE = "/xanadu/fb_sender_example"
 FB_DB_URL = "https://xanadu-f5762-default-rtdb.firebaseio.com"
+
+CONSOLE_PRINT = False
+PERIOD_SEC = 1.0/60.0 # 60 fps
 
 #import numpy as np
 import matplotlib.pyplot as plt
@@ -303,7 +310,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	# Read and print the contents of the JSON file
 	with open(ground_truth_file, "r") as f:
 		data = json.load(f)
-		print(json.dumps(data, indent=4))  # Pretty print the JSON data
+		if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
 	#--------------------------------------------------------------------------------------
 	# Create annotations for each set of keypoints
 	annotations = [
@@ -320,7 +327,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	# Read and print the contents of the JSON file
 	with open(output_file, "r") as f:
 		data = json.load(f)
-		print(json.dumps(data, indent=4))  # Pretty print the JSON data
+		if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
 
 #run coco eval
 
@@ -392,13 +399,22 @@ def eval_skeleton_loop(vals, keypoints_2d_gt, keypoints_2d):
 
 def main():
     #setup Firebase first
-	scopes = [
-        "https://www.googleapis.com/auth/userinfo.email",
-        "https://www.googleapis.com/auth/firebase.database"
-    ]
-	fb_credentials = service_account.Credentials.from_service_account_file(
-        SECRETS_FILE, scopes=scopes)
-	fb = fb_authsteps(fb_credentials)
+	# scopes = [
+    #     "https://www.googleapis.com/auth/userinfo.email",
+    #     "https://www.googleapis.com/auth/firebase.database"
+    # ]
+	# fb_credentials = service_account.Credentials.from_service_account_file(
+    #     SECRETS_FILE, scopes=scopes)
+	# fb = fb_authsteps(fb_credentials)
+
+	cred = credentials.Certificate(SECRETS_FILE)
+	firebase_admin.initialize_app(cred, {
+        'databaseURL': FB_DB_URL
+    })
+
+	ref = db.reference(FB_NAMESPACE)
+	print(f"Firebase database reference: {repr(ref)}")
+	print(f"Period = {(PERIOD_SEC*1000.0):0.3f} ms.")
 	
 	data = {"energy": 0, "accuracy": 0, "lag": 0}
 	#data["energy"] = random.uniform(-100.0, 100.0)
@@ -450,7 +466,10 @@ def main():
 			body_runtime_param.detection_confidence_threshold = 40
 			
 		#Capture the data.
-		for _ in range(NUM_FRAMES): #setup num frames
+		T0 = time.time()
+		#!for _ in range(NUM_FRAMES): #setup num frames
+		while True:
+			start_time = time.time() - T0
 			accuracy_vals = [] #!record all ppl in frame then avg it out.
 			velocity_vals = []
 			if zed.grab() == sl.ERROR_CODE.SUCCESS:
@@ -490,7 +509,7 @@ def main():
 								gt_keypoints.append([kp[0], kp[1]])  # Append x, y, and visibility
 
 							# Print the flattened array
-							print("ingrid flat key", gt_keypoints)
+							if CONSOLE_PRINT: print("ingrid flat key", gt_keypoints)
 							#print("ingrid bounding box?", body.bounding_box_2d)
 
 						#TODO: put right bodies in corresponding JSON files, right now: 
@@ -503,22 +522,32 @@ def main():
 							#file.write("\n")
 							#print("\n")
 
-			print("Each Skeleton Accuracy against GT =", accuracy_vals)
+			if CONSOLE_PRINT: print("Each Skeleton Accuracy against GT =", accuracy_vals)
 		
 			accuracy = 0
 			if len(accuracy_vals) > 0:
 				accuracy = ( sum(accuracy_vals) / len(accuracy_vals) )
 				#print("Accuracy", accuracy)
 			data["accuracy"] = accuracy
-			#print("ingrid velocity vals", velocity_vals)
+			if CONSOLE_PRINT: print("ingrid velocity vals", velocity_vals)
 			if len(velocity_vals) > 0:
-				velocity = abs(sum(x * 10 for x in velocity_vals))
-				#print("Velocity", velocity)
+				velocity = 0
+				for value in velocity_vals:
+					if not (value is None or math.isnan(value) or value == float("inf") or value == float("-inf")):
+						velocity += abs(value* 2)
+				#velocity = abs(sum(x * 10 for x in velocity_vals))
+				if CONSOLE_PRINT: print("Velocity", velocity)
 			data["energy"] = velocity
-			data["lag"] = random.uniform(0.0, 1.0)
+			data["lag"] = random.uniform(0.0, 1.0) / 10
 			print("frame data", data)
+			ref.set(
+            	{"data": data}
+			)
+			if CONSOLE_PRINT: print(f"{start_time:0.3f}: {data}")
+			elapsed_time = time.time() - T0 - start_time
+			time.sleep(max(0, PERIOD_SEC - elapsed_time))
 			# this updates a set of keys with the values
-			result = fb.put_async(FB_NAMESPACE, "data", data, callback=fb_callback)
+			#!result = fb.put_async(FB_NAMESPACE, "data", data, callback=fb_callback)
         	# this would generate unique keys per message
         	# result = fb.post_async(FB_NAMESPACE, data, callback=fb_callback)
         
