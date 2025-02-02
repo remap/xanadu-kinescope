@@ -9,7 +9,7 @@
       html, body {
         height: 100%;
         margin: 0;
-        background-color: #222;
+        background-color: #000;
         color: #eee;
         display: flex;
         flex-direction: column;
@@ -25,7 +25,7 @@
         height: 40%;
         width: 100%;
       }
-      #input-container { height: 10%; width: 100%; background: #333; padding: 0.5em; box-sizing: border-box; }
+      #input-container {   font-family: sans-serif, helvetica, arial; width: 100%; background: #333; padding: 0.5em; box-sizing: border-box; }
       #user-input { width: 80%; padding: 0.5em; }
       #submit-btn { padding: 0.5em 1em; }
     </style>
@@ -37,24 +37,32 @@
     <!-- The bottom 40% holds the xterm.js terminal -->
     <div id="terminal-container"></div>
     <div id="input-container">
-      <input type="text" id="user-input" placeholder="Enter text" />
+      URL:
+      <input type="text" id="user-input" value="https://www.dropbox.com/scl/fi/av5ozrpvhgr9qi5j4r1wg/test_image.jpg?rlkey=kqiq9yd7f7wi06z71p8g36dla&raw=1" />
       <button id="submit-btn">Submit</button>
     </div>
 
     <!-- xterm.js library -->
     <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.js"></script>
+
     <script>
       // Initialize the xterm.js terminal.
+      const fitAddon = new FitAddon.FitAddon();
       const term = new Terminal({
-        cols: 80,
-        rows: 24,
+          fontSize: 10,        // Set a small font size (adjust as needed)
+  tabStopWidth: 4,     // Set tab stops to 4 spaces
+        // cols: 80,
+        // rows: 24,
         scrollback: 1000,
         theme: {
-          background: '#222',
+          background: '#111',
           foreground: '#eee'
         }
       });
+      term.loadAddon(fitAddon);
       term.open(document.getElementById('terminal-container'));
+      fitAddon.fit();
 // Helper function to create a reconnecting WebSocket.
 function createWebSocket(url, onMessage, onOpen, onError, onClose) {
   let socket = new WebSocket(url);
@@ -97,7 +105,11 @@ function connectTerminal() {
     "ws://" + location.host + "/log",
     (event) => {
       // onMessage callback.
-      term.writeln(event.data);
+    const lines = event.data.split('\n').map(line =>
+    line.length > 160 ? line.substring(0, 160) + "..." : line
+    );
+    const formatted = lines.join('\r\n');
+    term.writeln(formatted);
     },
     () => {
       // onOpen callback.

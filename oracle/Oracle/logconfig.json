@@ -21,12 +21,18 @@
       "filename": "Oracle.log",
       "formatter": "default",
       "level": "DEBUG"
+    },
+    "websocket": {
+      "class": "__main__.WebSocketLogHandler",
+      "formatter": "color",
+      "level": "DEBUG"
     }
   },
   "root": {
     "handlers": [
       "console",
-      "file"
+      "file",
+      "websocket"
     ],
     "level": "INFO"
   }

@@ -26,8 +26,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 import uvicorn
+import asyncio
+from contextlib import asynccontextmanager
 
-app = FastAPI()
 
 config = {
     "openai_config_path": "xanadu-secret-openai.json",
@@ -39,32 +40,64 @@ config = {
     "thread_pool_size": 5,
     "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
     "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
-    "suppress_first_run": False  # Skips a run based on the first keys encountered on startup
+    "suppress_first_fb_run": True  # Skips a run based on the first keys encountered on startup
 }
 status = {
     "runs": -1
 }
 
+## Is there another place we can put this
+#  main()
+#
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    title = "Choreography Oracle (Kinescope)"
+    parser = argparse.ArgumentParser(description=title)
+    args = parser.parse_args()
+    logger.info(title)
+    global main_loop
+    main_loop = asyncio.get_running_loop()
+    firebase_task = asyncio.create_task(firebase_listener_task())
+    heartbeat_task = asyncio.create_task(heartbeat())
+    try:
+        yield
+    finally:
+        firebase_task.cancel()
+        heartbeat_task.cancel()
+app = FastAPI(lifespan=lifespan)
 
 
 # A global set to keep track of connected terminal WebSocket clients.
 connected_terminal_websockets: set[WebSocket] = set()
 
+# Global variable to hold the main event loop.
+main_loop = None
+
 class WebSocketLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         message = self.format(record)
-        try:
-            loop = asyncio.get_running_loop()
-            for ws in list(connected_terminal_websockets):
-                loop.create_task(self.send_message(ws, message))
-        except:
-            pass # TODO
-        
+        global main_loop
+        if main_loop is None:
+            return
+        # Schedule sending on the main event loop in a thread-safe way.
+        for ws in list(connected_terminal_websockets):
+            main_loop.call_soon_threadsafe(
+                lambda ws=ws, message=message: asyncio.create_task(self.send_message(ws, message))
+            )
+
     async def send_message(self, ws: WebSocket, message: str) -> None:
         try:
             await ws.send_text(message)
         except Exception:
             connected_terminal_websockets.discard(ws)
+
+
+    async def send_message(self, ws: WebSocket, message: str) -> None:
+        try:
+            await ws.send_text(message)
+        except Exception:
+            connected_terminal_websockets.discard(ws)
+
 
 
 ## Set up logger borrowed from Hermes
@@ -94,9 +127,9 @@ logger.setLevel(logging.DEBUG)
 # Add websocket logger
 #logger = logging.getLogger("live_logger")
 #logger.setLevel(logging.DEBUG)
-ws_handler = WebSocketLogHandler()
-ws_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
-logger.addHandler(ws_handler)
+# ws_handler = WebSocketLogHandler()
+# ws_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+# logger.addHandler(ws_handler)
 
 # Init OpenAI
 with open(config['openai_config_path']) as f:
@@ -119,12 +152,6 @@ def initialize_firebase(config):
 
 # --------- FAST API SERVER
 
-@app.post("/urlinput")
-async def submit_input(request: Request):
-    data = await request.json()
-    user_input = data.get("input", "")
-    logger.info(f"Received input from client: {user_input}")
-    return JSONResponse({"status": "ok"})
 
 @app.websocket("/log")
 async def log_endpoint(websocket: WebSocket) -> None:
@@ -140,7 +167,7 @@ async def log_endpoint(websocket: WebSocket) -> None:
 
 
 # Global cache for the latest dynamic HTML fragment.
-dynamic_html_cache: str = ""
+dynamic_html_cache: str = "<html><body></body></html>"
 
 # A global set to keep track of connected dynamic HTML WebSocket clients.
 dynamic_html_clients: set[WebSocket] = set()
@@ -148,16 +175,11 @@ dynamic_html_clients: set[WebSocket] = set()
 @app.websocket("/dynamic")
 async def dynamic_html_endpoint(websocket: WebSocket):
     await websocket.accept()
-    # Add client to our global set.
     dynamic_html_clients.add(websocket)
     try:
-        # If we have a cached HTML fragment, send it immediately.
-        if dynamic_html_cache:
-            await websocket.send_text(dynamic_html_cache)
-        # Keep the connection open.
+        await websocket.send_text(dynamic_html_cache)
         while True:
-            # You can use a long sleep here; the purpose is just to keep the connection alive.
-            await asyncio.sleep(5)
+            await asyncio.sleep(5)  # keep connection active.
     except WebSocketDisconnect:
         dynamic_html_clients.discard(websocket)
 
@@ -275,15 +297,18 @@ def render_nested_vars(data, **variables):
 # Output writer for last set of completion choices
 # Cup of Beautiful Soup placeholder for cleanup and munging
 
+def cleanHTML(intext):
+    soup = BeautifulSoup(intext, "html.parser")
+    return soup.find("html").prettify()
+
 def writeHTML(choices, config):
     def writeCleanHTML(intext, outfile):
         with open(outfile, "w", encoding="utf-8") as html_file:
-            soup = BeautifulSoup(intext, "html.parser")
-            html_content = soup.find("html").prettify()  # encode_contents().decode("utf-8")
+            html_content = cleanHTML(intext)
             html_file.write(html_content)
         return html_content
 
-    # Write a file per choice
+        # Write a file per choice
     #
     k = 0
     for choice in choices:
@@ -292,6 +317,8 @@ def writeHTML(choices, config):
         logger.info(f"Writing choice {k} as {filename}.  {path.as_uri()} ")
         writeCleanHTML(choice.message.content, path)
         k += 1
+
+
 
 def process_pipeline(image_collection, client, config):
 
@@ -406,63 +433,53 @@ def process_pipeline(image_collection, client, config):
 # Firebase event listener
 # Expected incoming format is either a string with a single image or a json-formatted array
 #
-def listener(event, status, config, client, testURL=None):
+def proc_urls(event, source="", broadcast=True, testURL=None):
 
+    # Reset firebase listener first run suppression if we've been triggered at least once
+    if status["runs"] < 0: status["runs"] = 0
+
+    ## Handle string and list inputs
+    #
     if not testURL is None:
         logger.warning(f"Invoked with test URL: {testURL}.")
         event = SimpleNamespace(data=testURL)
         status["runs"] = 0
-    else:
-        if config["suppress_first_run"] and status["runs"]==-1:
-            #logger.info("Suppressing first run")
-            status["runs"]=0
-            return
 
     if not isinstance(event.data, str):
-        logger.info(f"Listener {config['fb_key']}: Data not a string, returning.  Received: {event.data}")
+        logger.info(f"proc_urls {source}: Data not a string, returning.  Received: {event.data}")
         return
     try:
         if len(event.data.strip()) == 0:
-            logger.info(f"Listener {config['fb_key']}: Data is empty.")
+            logger.info(f"proc_urls {source}: Data is empty.")
             return
         files = json.loads(event.data)
         if not isinstance(files, list):
-            logger.info(f"Listener {config['fb_key']}: Data is JSON but {type(files)} and not a list, returning.  Received: {files}")
+            logger.info(f"proc_urls {source}: Data is JSON but {type(files)} and not a list, returning.  Received: {files}")
             return
     except:
         files = [event.data]
 
-
+    ## Run
+    #
     status["runs"] +=1
-    logger.info(f"Listener {config['fb_key']}: Run {status['runs']} {event.data}")
+    logger.info(f"proc_urls {source}: Run {status['runs']} {event.data}")
 
-
-    # Get the images
     image_collection = download_images(files, config['folder_path'], config['thread_pool_size'])
 
-    # Run the chain
     result = process_pipeline(image_collection, client, config)
-    logger.info(f"Listener {config['fb_key']}: Completed process_pipeline")
-    #print(result)
+    logger.info(f"proc_urls {source}: Completed process_pipeline")
+
+
+    result = cleanHTML(result)    # Strip the ```html
+    if broadcast:
+        main_loop.call_soon_threadsafe(
+            lambda: asyncio.create_task(broadcast_html(result))
+        )
+
     return result
 
 
-def signal_handler(sig, frame, stop_event, listener_thread):
-    logger.info(f"Terminating listener {config['fb_key']}...")
-    stop_event.set()
-    listener_thread.join()
-    sys.exit(0)
-
-
-import asyncio
-import signal
-import logging
-import sys
-
-# Assume these are defined/imported:
-# initialize_firebase, listener, config, status, client, db
-
-async def firebase_listener_task(config, status, client):
+async def firebase_listener_task():
     initialize_firebase(config)
     ref = db.reference(config['fb_key'])
     if ref is None:
@@ -472,17 +489,17 @@ async def firebase_listener_task(config, status, client):
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
 
-    # Wrapper to call your existing listener.
-    def listener_wrapper(event):
-        listener(event, status, config, client)
+    def fb_listener(event):
+        if config["suppress_first_fb_run"] and status["runs"]==-1:
+            #logger.info("Suppressing first run")
+            status["runs"]=0
+            return
+        return proc_urls(event, config["fb_key"])
 
-    # Run the blocking ref.listen in an executor.
-    def run_listener():
-        ref.listen(listener_wrapper)
+    listener_future = loop.run_in_executor(None, lambda : ref.listen( fb_listener ))
+    while True:
+        await asyncio.sleep(5) #TODO
 
-    listener_future = loop.run_in_executor(None, run_listener)
-
-    # Signal handler to stop the task.
     def on_signal():
         logging.info("SIGINT received, stopping firebase listener task.")
         loop.call_soon_threadsafe(stop_event.set)
@@ -490,64 +507,37 @@ async def firebase_listener_task(config, status, client):
 
     await stop_event.wait()
     logging.info("Firebase listener task stopped.")
-    # Optionally, you might cancel listener_future here if your library supports it:
-    # listener_future.cancel()
 
-def gen_html() -> str:
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    random_number = random.randint(1, 100)
-    return f"""
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Dynamic HTML Update</title>
-      </head>
-      <body style="background-color:#000; color:#fff; margin:0; padding:1em;">
-        <h1>Dynamic HTML Content</h1>
-        <p>Updated at {now}</p>
-        <p>Random number: {random_number}</p>
-      </body>
-    </html>
-    """
-
-async def run_oracle() -> None:
+async def broadcast_html(new_html) -> None:
     global dynamic_html_cache
-    logger.info("run_oracle()")
-    while True:
-        # Wait between 1 and 10 seconds.
-        logger.debug("Waiting...")
-        await asyncio.sleep(random.randint(1, 10))
-        logger.debug("Generating")
-        dynamic_html_cache = gen_html()
-        # Broadcast the new HTML to all connected dynamic clients.
-        logger.debug("Broadcasting")
-        disconnected = set()
-        for client in dynamic_html_clients:
-            try:
-                await client.send_text(dynamic_html_cache)
-            except Exception:
-                disconnected.add(client)
-        # Remove any clients that failed.
-        for client in disconnected:
-            dynamic_html_clients.discard(client)
-        logger.debug("Complete")
+    dynamic_html_cache = new_html
+    logger.debug("Broadcasting")
+    disconnected = set()
+    for client in dynamic_html_clients:
+        try:
+            await client.send_text(dynamic_html_cache)
+        except Exception:
+            disconnected.add(client)
+    # Remove any clients that failed.
+    for client in disconnected:
+        dynamic_html_clients.discard(client)
 
-@app.on_event("startup")
-async def startup_event() -> None:
 
-    title = "Choreography Oracle (Kinescope)"
-    # Use argparse to handle command line arguments
-    parser = argparse.ArgumentParser(description=title)
-    # parser.add_argument('testurl', nargs='?', type=str, help='url to test and quit', default=None)
-    args = parser.parse_args()
-
-    logger.info(title)
-
-    #asyncio.create_task(generate_test_logs())
-    asyncio.create_task(firebase_listener_task(config, status, client))
-    asyncio.create_task(run_oracle())
-    asyncio.create_task(heartbeat())
+@app.post("/urlinput")
+async def submit_input(request: Request):
+    client_host, client_port = request.client
+    data = await request.json()
+    user_input = data.get("input", "")
+    logger.info(f"Received input from client: {user_input}")
+    loop = asyncio.get_running_loop()
+    # Offload proc_urls to an executor to avoid blocking the event loop.
+    await loop.run_in_executor(
+        None,
+        proc_urls,
+        SimpleNamespace(data=user_input),
+        f"{client_host}:{client_port}"
+    )
+    return JSONResponse({"status": "ok"})
 
 
 if __name__ == "__main__":
