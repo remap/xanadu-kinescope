@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Oracle of Chrysopoeia</title>
+    <!-- xterm.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background-color: #222;
+        color: #eee;
+        display: flex;
+        flex-direction: column;
+      }
+      /* Top container for dynamic HTML (using iframe) */
+      #dynamic-container {
+        height: 60%;
+        width: 100%;
+        border: none;
+      }
+      /* Bottom container for the terminal */
+      #terminal-container {
+        height: 40%;
+        width: 100%;
+      }
+      #input-container { height: 10%; width: 100%; background: #333; padding: 0.5em; box-sizing: border-box; }
+      #user-input { width: 80%; padding: 0.5em; }
+      #submit-btn { padding: 0.5em 1em; }
+    </style>
+
+  </head>
+  <body>
+    <!-- The top 60% displays dynamic HTML via an iframe -->
+    <iframe id="dynamic-container" frameborder="0"></iframe>
+    <!-- The bottom 40% holds the xterm.js terminal -->
+    <div id="terminal-container"></div>
+    <div id="input-container">
+      <input type="text" id="user-input" placeholder="Enter text" />
+      <button id="submit-btn">Submit</button>
+    </div>
+
+    <!-- xterm.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+    <script>
+      // Initialize the xterm.js terminal.
+      const term = new Terminal({
+        cols: 80,
+        rows: 24,
+        scrollback: 1000,
+        theme: {
+          background: '#222',
+          foreground: '#eee'
+        }
+      });
+      term.open(document.getElementById('terminal-container'));
+// Helper function to create a reconnecting WebSocket.
+function createWebSocket(url, onMessage, onOpen, onError, onClose) {
+  let socket = new WebSocket(url);
+
+  socket.onopen = () => {
+    console.log("Connected to " + url);
+    if (onOpen) onOpen(socket);
+  };
+
+  socket.onmessage = (event) => {
+    // Ignore ping messages.
+    if (event.data === "<<ping>>") {
+      console.log("Received ping from " + url);
+      return;
+    }
+    if (onMessage) onMessage(event);
+  };
+
+  socket.onerror = (err) => {
+    console.error("WebSocket error on " + url + ":", err);
+    if (onError) onError(err);
+  };
+
+  socket.onclose = (e) => {
+    console.warn("WebSocket closed on " + url + ":", e);
+    if (onClose) onClose(e);
+    // Attempt to reconnect after 3 seconds.
+    setTimeout(() => {
+      console.log("Reconnecting to " + url + "...");
+      createWebSocket(url, onMessage, onOpen, onError, onClose);
+    }, 3000);
+  };
+
+  return socket;
+}
+
+// Function to connect the terminal WebSocket.
+function connectTerminal() {
+  createWebSocket(
+    "ws://" + location.host + "/log",
+    (event) => {
+      // onMessage callback.
+      term.writeln(event.data);
+    },
+    () => {
+      // onOpen callback.
+      term.writeln("Connected to terminal log source.");
+    },
+    (err) => {
+      // onError callback.
+      term.writeln("Terminal WebSocket error: " + err);
+    },
+    () => {
+      // onClose callback.
+      term.writeln("Terminal WebSocket connection closed.");
+    }
+  );
+}
+
+// Function to connect the dynamic HTML WebSocket.
+function connectDynamic() {
+  createWebSocket(
+    "ws://" + location.host + "/dynamic",
+    (event) => {
+      // onMessage callback: update the iframe's srcdoc.
+      const iframe = document.getElementById("dynamic-container");
+      iframe.srcdoc = event.data;
+    },
+    () => {
+      // onOpen callback.
+      console.log("Connected to dynamic HTML source.");
+    },
+    (err) => {
+      // onError callback.
+      console.error("Dynamic WebSocket error:", err);
+    },
+    () => {
+      // onClose callback.
+      console.warn("Dynamic WebSocket connection closed.");
+    }
+  );
+}
+
+// Initialize both connections.
+connectTerminal();
+connectDynamic();
+
+    // Text input submission
+      document.getElementById("submit-btn").addEventListener("click", () => {
+        const inputValue = document.getElementById("user-input").value;
+        fetch("/urlinput", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: inputValue })
+        })
+        .then(response => response.json())
+        .then(data => console.log(data));
+      });
+    </script>
+  </body>
+</html>

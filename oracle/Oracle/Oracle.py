@@ -15,6 +15,57 @@ from bs4 import BeautifulSoup
 from jinja2 import Template
 import argparse
 from types import SimpleNamespace
+import asyncio
+import logging
+import os
+import random
+from datetime import datetime
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+import uvicorn
+
+app = FastAPI()
+
+config = {
+    "openai_config_path": "xanadu-secret-openai.json",
+    "folder_path": "tmp_images",
+    "html_path": ".",
+    "temperature": 0.7,
+    "model": "gpt-4o",
+    "fb_key": "/xanadu/oracle/files",
+    "thread_pool_size": 5,
+    "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
+    "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
+    "suppress_first_run": False  # Skips a run based on the first keys encountered on startup
+}
+status = {
+    "runs": -1
+}
+
+
+
+# A global set to keep track of connected terminal WebSocket clients.
+connected_terminal_websockets: set[WebSocket] = set()
+
+class WebSocketLogHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        message = self.format(record)
+        try:
+            loop = asyncio.get_running_loop()
+            for ws in list(connected_terminal_websockets):
+                loop.create_task(self.send_message(ws, message))
+        except:
+            pass # TODO
+        
+    async def send_message(self, ws: WebSocket, message: str) -> None:
+        try:
+            await ws.send_text(message)
+        except Exception:
+            connected_terminal_websockets.discard(ws)
+
 
 ## Set up logger borrowed from Hermes
 ##
@@ -40,6 +91,21 @@ logging.config.dictConfig(logconfig)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Add websocket logger
+#logger = logging.getLogger("live_logger")
+#logger.setLevel(logging.DEBUG)
+ws_handler = WebSocketLogHandler()
+ws_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
+logger.addHandler(ws_handler)
+
+# Init OpenAI
+with open(config['openai_config_path']) as f:
+    openai_config = json.load(f)
+config["openai_api_key"] = openai_config["apiKey"]
+client = OpenAI(api_key=config["openai_api_key"])
+if client is None:
+    logging.error("Could not create OpenAI client.")
+    sys.exit(0)
 
 ## Initialize Firebase
 ##
@@ -51,8 +117,104 @@ def initialize_firebase(config):
         'databaseURL': firebase_config['databaseURL']
     })
 
+# --------- FAST API SERVER
 
-# ---------
+@app.post("/urlinput")
+async def submit_input(request: Request):
+    data = await request.json()
+    user_input = data.get("input", "")
+    logger.info(f"Received input from client: {user_input}")
+    return JSONResponse({"status": "ok"})
+
+@app.websocket("/log")
+async def log_endpoint(websocket: WebSocket) -> None:
+    await websocket.accept()
+    connected_terminal_websockets.add(websocket)
+    client_host, client_port = websocket.client
+    logger.info(f"New connection from {client_host}:{client_port}")
+    try:
+        while True:
+            await websocket.receive_text()  # Keep the connection open.
+    except WebSocketDisconnect:
+        connected_terminal_websockets.discard(websocket)
+
+
+# Global cache for the latest dynamic HTML fragment.
+dynamic_html_cache: str = ""
+
+# A global set to keep track of connected dynamic HTML WebSocket clients.
+dynamic_html_clients: set[WebSocket] = set()
+
+@app.websocket("/dynamic")
+async def dynamic_html_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    # Add client to our global set.
+    dynamic_html_clients.add(websocket)
+    try:
+        # If we have a cached HTML fragment, send it immediately.
+        if dynamic_html_cache:
+            await websocket.send_text(dynamic_html_cache)
+        # Keep the connection open.
+        while True:
+            # You can use a long sleep here; the purpose is just to keep the connection alive.
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        dynamic_html_clients.discard(websocket)
+
+
+# Serve the main HTML file (client code) from the root URL.
+@app.get("/")
+async def get_index():
+    return FileResponse(os.path.join("html", "index.html"))
+
+# Mount static assets under "/static" (if any).
+app.mount("/static", StaticFiles(directory="html", html=True), name="static")
+
+async def generate_test_logs() -> None:
+    count = 0
+    while True:
+        if connected_terminal_websockets:  # Only log if at least one terminal client is connected.
+            logger.info(f"Log message #{count}")
+            count += 1
+        await asyncio.sleep(0.25)
+
+
+async def heartbeat() -> None:
+    while True:
+        # Send a "ping" to terminal clients.
+        for ws in list(connected_terminal_websockets):
+            try:
+                await ws.send_text("<<ping>>")
+            except Exception:
+                connected_terminal_websockets.discard(ws)
+        # Also ping dynamic clients if desired.
+        for ws in list(dynamic_html_clients):
+            try:
+                await ws.send_text("<<ping>>")
+            except Exception:
+                dynamic_html_clients.discard(ws)
+        await asyncio.sleep(30)
+
+def gen_html() -> str:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    random_number = random.randint(1, 100)
+    return f"""
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Dynamic HTML Update</title>
+      </head>
+      <body style="background-color:#000; color:#fff; margin:0; padding:1em;">
+        <h1>Dynamic HTML Content</h1>
+        <p>Updated at {now}</p>
+        <p>Random number: {random_number}</p>
+      </body>
+    </html>
+    """
+
+
+# --------- ORACLE MAIN LOGIC
 
 ## Downloader images from provided URLs
 #
@@ -113,7 +275,7 @@ def render_nested_vars(data, **variables):
 # Output writer for last set of completion choices
 # Cup of Beautiful Soup placeholder for cleanup and munging
 
-def writeHTML(choices):
+def writeHTML(choices, config):
     def writeCleanHTML(intext, outfile):
         with open(outfile, "w", encoding="utf-8") as html_file:
             soup = BeautifulSoup(intext, "html.parser")
@@ -126,9 +288,9 @@ def writeHTML(choices):
     k = 0
     for choice in choices:
         filename = f"choreo_table{k}.html"
-        path = Path(filename).resolve().as_uri()
-        logger.info(f"Writing choice {k} as {filename}.  {path} ")
-        writeCleanHTML(choice.message.content, filename)
+        path = (Path(config["html_path"]) / Path(filename)).resolve()
+        logger.info(f"Writing choice {k} as {filename}.  {path.as_uri()} ")
+        writeCleanHTML(choice.message.content, path)
         k += 1
 
 def process_pipeline(image_collection, client, config):
@@ -136,7 +298,7 @@ def process_pipeline(image_collection, client, config):
     logger.info(f"process_pipeline called with collection {image_collection}")
 
     ## Input: IMAGES
-    ## Ouput: HTML WITH CHOREO
+    ## Output: HTML WITH CHOREO
     steps = [
         {
             "description": "Generate an ancient Greek poem.",
@@ -206,7 +368,7 @@ def process_pipeline(image_collection, client, config):
             ],
             "role": "You are an HTML5 formatter.  You only respond in syntatically correct HTML5.",
             "f_explain": lambda completion_choices: f"Final html: \n{completion_choices[0].message.content[:150]}...\n",
-            "f_side_effects": [lambda completion_choices: writeHTML(completion_choices)],
+            "f_side_effects": [lambda completion_choices: writeHTML(completion_choices, config)],
         }
     ]
 
@@ -280,7 +442,9 @@ def listener(event, status, config, client, testURL=None):
 
     # Run the chain
     result = process_pipeline(image_collection, client, config)
-    logger.info(f"Listener {config['fb_key']}: Completed process_pipeline, waiting for new urls...")
+    logger.info(f"Listener {config['fb_key']}: Completed process_pipeline")
+    #print(result)
+    return result
 
 
 def signal_handler(sig, frame, stop_event, listener_thread):
@@ -289,79 +453,103 @@ def signal_handler(sig, frame, stop_event, listener_thread):
     listener_thread.join()
     sys.exit(0)
 
-def main():
 
-    title = "Choreography Oracle (Kinescope)"
-    # Use argparse to handle command line arguments
-    parser = argparse.ArgumentParser(description=title)
-    parser.add_argument('testurl', nargs='?', type=str, help='url to test and quit', default=None)
-    args = parser.parse_args()
+import asyncio
+import signal
+import logging
+import sys
 
-    logger.info(title)
+# Assume these are defined/imported:
+# initialize_firebase, listener, config, status, client, db
 
-    config = {
-        "openai_config_path": "xanadu-secret-openai.json",
-        "folder_path": "tmp_images",
-        "temperature": 0.7,
-        "model": "gpt-4o",
-        "fb_key": "/xanadu/oracle/files",
-        "thread_pool_size": 5,
-        "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
-        "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
-        "suppress_first_run": True  # Skips a run based on the first keys encountered on startup
-    }
-    status = {
-        "runs": -1
-    }
-
-
-
-    # Init OpenAI
-    with open(config['openai_config_path']) as f:
-        openai_config = json.load(f)
-    config["openai_api_key"] = openai_config["apiKey"]
-    client = OpenAI(api_key=config["openai_api_key"])
-    if client is None:
-        logging.error("Could not create OpenAI client.")
-        sys.exit(0)
-
-
-    if not args.testurl is None:
-        listener(None,status,config,client,testURL=args.testurl)
-        sys.exit(0)
-
-    # Init firebase
+async def firebase_listener_task(config, status, client):
     initialize_firebase(config)
     ref = db.reference(config['fb_key'])
     if ref is None:
         logging.error("Could not create firebase client.")
         sys.exit(0)
 
-    # Listen for new URLs
-    #
-    stop_event = Event()
-    listener_thread = Thread(target=ref.listen, args=(lambda event: listener(event, status, config, client),))
-    logging.info(f"Starting firebase listener for path {config['fb_key']}.")
-    listener_thread.start()
-    signal.signal(signal.SIGINT, lambda sig, frame: signal_handler(sig, frame, stop_event, listener_thread))
-    while not stop_event.is_set():
-        stop_event.wait(1)
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    # Wrapper to call your existing listener.
+    def listener_wrapper(event):
+        listener(event, status, config, client)
+
+    # Run the blocking ref.listen in an executor.
+    def run_listener():
+        ref.listen(listener_wrapper)
+
+    listener_future = loop.run_in_executor(None, run_listener)
+
+    # Signal handler to stop the task.
+    def on_signal():
+        logging.info("SIGINT received, stopping firebase listener task.")
+        loop.call_soon_threadsafe(stop_event.set)
+    loop.add_signal_handler(signal.SIGINT, on_signal)
+
+    await stop_event.wait()
+    logging.info("Firebase listener task stopped.")
+    # Optionally, you might cancel listener_future here if your library supports it:
+    # listener_future.cancel()
+
+def gen_html() -> str:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    random_number = random.randint(1, 100)
+    return f"""
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Dynamic HTML Update</title>
+      </head>
+      <body style="background-color:#000; color:#fff; margin:0; padding:1em;">
+        <h1>Dynamic HTML Content</h1>
+        <p>Updated at {now}</p>
+        <p>Random number: {random_number}</p>
+      </body>
+    </html>
+    """
+
+async def run_oracle() -> None:
+    global dynamic_html_cache
+    logger.info("run_oracle()")
+    while True:
+        # Wait between 1 and 10 seconds.
+        logger.debug("Waiting...")
+        await asyncio.sleep(random.randint(1, 10))
+        logger.debug("Generating")
+        dynamic_html_cache = gen_html()
+        # Broadcast the new HTML to all connected dynamic clients.
+        logger.debug("Broadcasting")
+        disconnected = set()
+        for client in dynamic_html_clients:
+            try:
+                await client.send_text(dynamic_html_cache)
+            except Exception:
+                disconnected.add(client)
+        # Remove any clients that failed.
+        for client in disconnected:
+            dynamic_html_clients.discard(client)
+        logger.debug("Complete")
+
+@app.on_event("startup")
+async def startup_event() -> None:
+
+    title = "Choreography Oracle (Kinescope)"
+    # Use argparse to handle command line arguments
+    parser = argparse.ArgumentParser(description=title)
+    # parser.add_argument('testurl', nargs='?', type=str, help='url to test and quit', default=None)
+    args = parser.parse_args()
+
+    logger.info(title)
+
+    #asyncio.create_task(generate_test_logs())
+    asyncio.create_task(firebase_listener_task(config, status, client))
+    asyncio.create_task(run_oracle())
+    asyncio.create_task(heartbeat())
+
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
-
-# def apitest(key):
-#     client = OpenAI(api_key=key)
-#     image_path = "test_image.jpg"
-#     base64_image = base64_encode_image(image_path)
-#     prompt_content = [
-#         {"type": "text", "text": "Write a haiku inspired by this image."},
-#         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}, }
-#     ]
-#     completion = client.chat.completions.create(model="gpt-4o",
-#                                                 messages=[
-#                                                     {"role": "system", "content": "You are a creative assistant."},
-#                                                     {"role": "user", "content": prompt_content},
-#                                                 ])
-#     print(completion.choices[0].message.content)

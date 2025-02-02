@@ -2,3 +2,5 @@
 xanadu-secret-*
 *.log
 tmp_images/*
+.venv/*
+venv/*
