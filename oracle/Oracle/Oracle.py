@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 import asyncio
 from contextlib import asynccontextmanager
+import mimetypes
 
 config = {
     "web_host": "0.0.0.0",
@@ -41,7 +42,7 @@ config = {
     "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
     "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
     "basic_auth_config_path": "xanadu-secret-oracle-basic-auth.json",
-    "html_oracle_starting":  '<html><body><h1 style="color:#fff">Waiting for the Oracle of Chrysopoeia.<h1></body></html>',
+    "html_oracle_waiting":  '<html><body><h1 style="color:#fff">Waiting for the Oracle of Chrysopoeia.<h1></body></html>',
     "html_oracle_busy": '<html><body><h1 style="color:#fff">The Oracle of Chrysopoeia is working for someone.<br/> Try your request in a bit. <h1></body></html>',
     "suppress_first_fb_run": True  # Skips a run based on the first keys encountered on startup
 }
@@ -58,7 +59,7 @@ oracle_status = {
     "running": False
 }
 
-dynamic_html_cache: str = config["html_oracle_starting"]
+dynamic_html_cache: str = config["html_oracle_waiting"]
 dynamic_html_clients: set[WebSocket] = set()
 connected_terminal_websockets: set[WebSocket] = set()
 main_loop = None  # async io
@@ -325,12 +326,14 @@ def download_images(image_urls, folder_path, max_threads):
             if response.status_code == 200:
                 content_type = response.headers.get("Content-Type", "")
                 if content_type.startswith("image/"):
-                    image_path = os.path.join(folder_path, f"image_{index}.jpg")
+                    extension = mimetypes.guess_extension(content_type)
+                    image_path = os.path.join(folder_path, f"image_{index}{extension}")
                     with open(image_path, "wb") as file:
                         file.write(response.content)
+                        logger.info(f"Downloaded {url} to {image_path}")
                 else:
                     logger.warning(f"URL does not point to an image: {url}")
-            logger.info(f"Downloaded {url} to {image_path}")
+
 
         except Exception as e:
             logger.error(f"Error downloading image: {e}")
@@ -538,7 +541,7 @@ def proc_urls(event, source="", broadcast=True, testURL=None):
     oracle_status["running"] = True
     if oracle_status["runs"] < 0: oracle_status["runs"] = 0
     oracle_status["runs"] += 1
-
+    result = None
     try:
         busy_html = config["html_oracle_busy"]
         if broadcast:
@@ -549,6 +552,10 @@ def proc_urls(event, source="", broadcast=True, testURL=None):
         logger.info(f"proc_urls {source}: Run {oracle_status['runs']} {event.data}")
 
         image_collection = download_images(files, config['folder_path'], config['thread_pool_size'])
+        if len(image_collection) < 1:
+            logger.error(f"No images obtained, aborting.")
+            raise
+
         result = process_pipeline(image_collection, client, config)
 
         logger.info(f"proc_urls {source}: Completed process_pipeline")
@@ -560,6 +567,10 @@ def proc_urls(event, source="", broadcast=True, testURL=None):
             )
     except Exception as e:
         logger.error(f"Exception in Oracle processing (proc_urls) - {e}")
+        if broadcast:
+            main_loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(broadcast_html(config["html_oracle_waiting"]))
+            )
     finally:
         oracle_status["running"] = False
 
