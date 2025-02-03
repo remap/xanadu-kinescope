@@ -28,7 +28,6 @@ import uvicorn
 import asyncio
 from contextlib import asynccontextmanager
 
-
 config = {
     "web_host": "0.0.0.0",
     "web_port": 8000,
@@ -41,16 +40,28 @@ config = {
     "thread_pool_size": 5,
     "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
     "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
+    "basic_auth_config_path": "xanadu-secret-oracle-basic-auth.json",
+    "html_oracle_starting":  '<html><body><h1 style="color:#fff">Waiting for the Oracle of Chrysopoeia.<h1></body></html>',
+    "html_oracle_busy": '<html><body><h1 style="color:#fff">The Oracle of Chrysopoeia is working for someone.<br/> Try your request in a bit. <h1></body></html>',
     "suppress_first_fb_run": True  # Skips a run based on the first keys encountered on startup
 }
-status = {
-    "runs": -1
+
+auth_config_path = Path(config["basic_auth_config_path"])
+if auth_config_path.exists():
+    with auth_config_path.open("r") as f:
+        config.update(json.load(f))
+else:
+    logger.error(f"can't find {config['basic_auth_config_path']}")
+
+oracle_status = {
+    "runs": -1,
+    "running": False
 }
 
-dynamic_html_cache: str = "<html><body></body></html>"
+dynamic_html_cache: str = config["html_oracle_starting"]
 dynamic_html_clients: set[WebSocket] = set()
 connected_terminal_websockets: set[WebSocket] = set()
-main_loop = None # async io
+main_loop = None  # async io
 
 
 ## Is there another place we can put this
@@ -72,7 +83,50 @@ async def lifespan(app: FastAPI):
         firebase_task.cancel()
         heartbeat_task.cancel()
 
+
+######
+import base64
+import ipaddress
+from fastapi import FastAPI, Request, Response, WebSocket, status
+from starlette.middleware.base import BaseHTTPMiddleware
+
+USERNAME = "admin"
+PASSWORD = "secret"
+ALLOWED_IPS = ["131.179.141.0/24"]
+ALLOWED_NETWORKS = [ipaddress.ip_network(ip, strict=False) for ip in ALLOWED_IPS]
+
+
+def check_auth(client_ip: str | None, auth: str | None) -> bool:
+    if client_ip:
+        try:
+            ip_obj = ipaddress.ip_address(client_ip)
+            for net in (ipaddress.ip_network(ip, strict=False) for ip in config["auth_allowed_ips"]):
+                if ip_obj in net:
+                    return True
+        except Exception:
+            pass
+    if not auth or not auth.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(auth.split(" ", 1)[1]).decode("utf-8")
+        user, pwd = decoded.split(":", 1)
+    except Exception:
+        return False
+    return user == config["auth_username"] and pwd == config["auth_password"]
+
+
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not check_auth(request.client.host if request.client else None, request.headers.get("Authorization")):
+            return Response("Unauthorized", status_code=status.HTTP_401_UNAUTHORIZED,
+                            headers={"WWW-Authenticate": "Basic"})
+        return await call_next(request)
+
+    ######
+
+
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(BasicAuthMiddleware)
 
 
 ## -- Logging
@@ -95,6 +149,7 @@ class WebSocketLogHandler(logging.Handler):
         except Exception:
             connected_terminal_websockets.discard(ws)
 
+
 ## Set up logger borrowed from Hermes
 ##
 class ColorFormatter(logging.Formatter):
@@ -112,6 +167,7 @@ class ColorFormatter(logging.Formatter):
         message = super().format(record)
         return f"{color}{message}{self.RESET}"
 
+
 path = Path("logconfig.json")
 with path.open("r", encoding="utf-8") as f:
     logconfig = json.load(f)
@@ -128,6 +184,7 @@ if client is None:
     logging.error("Could not create OpenAI client.")
     sys.exit(0)
 
+
 ## Initialize Firebase
 ##
 def initialize_firebase(config):
@@ -139,8 +196,14 @@ def initialize_firebase(config):
     })
 
 
+## FastAPI
+
+
 @app.websocket("/log")
 async def log_endpoint(websocket: WebSocket) -> None:
+    if not check_auth(websocket.client.host if websocket.client else None, websocket.headers.get("Authorization")):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     connected_terminal_websockets.add(websocket)
     client_host, client_port = websocket.client
@@ -151,8 +214,12 @@ async def log_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         connected_terminal_websockets.discard(websocket)
 
+
 @app.websocket("/dynamic")
 async def dynamic_html_endpoint(websocket: WebSocket):
+    if not check_auth(websocket.client.host if websocket.client else None, websocket.headers.get("Authorization")):
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     dynamic_html_clients.add(websocket)
     try:
@@ -162,27 +229,27 @@ async def dynamic_html_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         dynamic_html_clients.discard(websocket)
 
+
 @app.get("/")
-async def get_index():
+async def get_index(request: Request):
+    # authenticated via the middleware
     return FileResponse(os.path.join("html", "index.html"))
+
 
 app.mount("/static", StaticFiles(directory="html", html=True), name="static")
 
+
 async def heartbeat() -> None:
     while True:
-        # Send a "ping" to terminal clients.
-        for ws in list(connected_terminal_websockets):
+        clients = connected_terminal_websockets | dynamic_html_clients
+        for ws in list(clients):
             try:
                 await ws.send_text("<<ping>>")
             except Exception:
                 connected_terminal_websockets.discard(ws)
-        # Also ping dynamic clients if desired.
-        for ws in list(dynamic_html_clients):
-            try:
-                await ws.send_text("<<ping>>")
-            except Exception:
                 dynamic_html_clients.discard(ws)
         await asyncio.sleep(30)
+
 
 @app.post("/urlinput")
 async def submit_input(request: Request):
@@ -215,6 +282,7 @@ async def broadcast_html(new_html) -> None:
     for client in disconnected:
         dynamic_html_clients.discard(client)
 
+
 ## Firebase
 ##
 async def firebase_listener_task():
@@ -228,15 +296,14 @@ async def firebase_listener_task():
     stop_event = asyncio.Event()
 
     def fb_listener(event):
-        if config["suppress_first_fb_run"] and status["runs"] == -1:
-            status["runs"] = 0
+        if config["suppress_first_fb_run"] and oracle_status["runs"] == -1:
+            oracle_status["runs"] = 0
             return
         return proc_urls(event, config["fb_key"])
 
     listener_future = loop.run_in_executor(None, lambda: ref.listen(fb_listener))
     while True:
         await asyncio.sleep(5)  # TODO
-
 
 
 # --------- ORACLE MAIN LOGIC
@@ -279,10 +346,12 @@ def download_images(image_urls, folder_path, max_threads):
             files.append(file_path)
     return files
 
+
 # Base64 encoding for uploaded images
 def base64_encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
+
 
 # Jinja2 templating for text prompts
 def render_nested_vars(data, **variables):
@@ -297,12 +366,14 @@ def render_nested_vars(data, **variables):
             render_nested_vars(item, **variables)
     return data
 
+
 # Output writer for last set of completion choices
 # Cup of Beautiful Soup placeholder for cleanup and munging
 
 def cleanHTML(intext):
     soup = BeautifulSoup(intext, "html.parser")
     return soup.find("html").prettify()
+
 
 def writeHTML(choices, config):
     def writeCleanHTML(intext, outfile):
@@ -312,6 +383,7 @@ def writeHTML(choices, config):
         return html_content
 
         # Write a file per choice
+
     #
     k = 0
     for choice in choices:
@@ -321,10 +393,9 @@ def writeHTML(choices, config):
         writeCleanHTML(choice.message.content, path)
         k += 1
 
-
-
+## ChatGPT logic / processing chain
+##
 def process_pipeline(image_collection, client, config):
-
     logger.info(f"process_pipeline called with collection {image_collection}")
 
     ## Input: IMAGES
@@ -406,7 +477,7 @@ def process_pipeline(image_collection, client, config):
     base64_image = []
     for image_path in image_collection:
         base64_image = base64_encode_image(image_path)
-        steps[0]["prompt"].append( {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"} } )
+        steps[0]["prompt"].append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}})
 
     ## ------------------
     ## Run our LLM CoT prompting
@@ -437,16 +508,17 @@ def process_pipeline(image_collection, client, config):
 # Expected incoming format is either a string with a single image or a json-formatted array
 #
 def proc_urls(event, source="", broadcast=True, testURL=None):
-
     # Reset firebase listener first run suppression if we've been triggered at least once
-    if status["runs"] < 0: status["runs"] = 0
+    if oracle_status["running"]:
+        logger.warning("Oracle is running. Discarding request.")
+        return
 
-    ## Handle string and list inputs
-    #
+    # Handle string and list inputs
+
     if not testURL is None:
         logger.warning(f"Invoked with test URL: {testURL}.")
         event = SimpleNamespace(data=testURL)
-        status["runs"] = 0
+        oracle_status["runs"] = 0
 
     if not isinstance(event.data, str):
         logger.info(f"proc_urls {source}: Data not a string, returning.  Received: {event.data}")
@@ -457,28 +529,41 @@ def proc_urls(event, source="", broadcast=True, testURL=None):
             return
         files = json.loads(event.data)
         if not isinstance(files, list):
-            logger.info(f"proc_urls {source}: Data is JSON but {type(files)} and not a list, returning.  Received: {files}")
+            logger.info(
+                f"proc_urls {source}: Data is JSON but {type(files)} and not a list, returning.  Received: {files}")
             return
     except:
         files = [event.data]
 
-    status["runs"] +=1
+    oracle_status["running"] = True
+    if oracle_status["runs"] < 0: oracle_status["runs"] = 0
+    oracle_status["runs"] += 1
 
-    logger.info(f"proc_urls {source}: Run {status['runs']} {event.data}")
+    try:
+        busy_html = config["html_oracle_busy"]
+        if broadcast:
+            main_loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(broadcast_html(busy_html))
+            )
 
-    image_collection = download_images(files, config['folder_path'], config['thread_pool_size'])
-    result = process_pipeline(image_collection, client, config)
+        logger.info(f"proc_urls {source}: Run {oracle_status['runs']} {event.data}")
 
-    logger.info(f"proc_urls {source}: Completed process_pipeline")
+        image_collection = download_images(files, config['folder_path'], config['thread_pool_size'])
+        result = process_pipeline(image_collection, client, config)
 
-    result = cleanHTML(result)    # Strip the ```html
-    if broadcast:
-        main_loop.call_soon_threadsafe(
-            lambda: asyncio.create_task(broadcast_html(result))
-        )
+        logger.info(f"proc_urls {source}: Completed process_pipeline")
+
+        result = cleanHTML(result)  # Strip the ```html
+        if broadcast:
+            main_loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(broadcast_html(result))
+            )
+    except Exception as e:
+        logger.error(f"Exception in Oracle processing (proc_urls) - {e}")
+    finally:
+        oracle_status["running"] = False
 
     return result
 
 if __name__ == "__main__":
     uvicorn.run(app, host=config["web_host"], port=config["web_port"])
-
