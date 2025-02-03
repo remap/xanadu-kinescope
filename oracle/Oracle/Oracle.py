@@ -272,7 +272,7 @@ async def submit_input(request: Request):
 async def broadcast_html(new_html) -> None:
     global dynamic_html_cache
     dynamic_html_cache = new_html
-    logger.debug("Broadcasting")
+    #logger.debug("Broadcasting")
     disconnected = set()
     for client in dynamic_html_clients:
         try:
@@ -343,10 +343,13 @@ def download_images(image_urls, folder_path, max_threads):
             executor.submit(download_image, url, i)
 
     files = []
-    for file in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, file)
-        if os.path.isfile(file_path):
-            files.append(file_path)
+    try:
+        for file in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, file)
+            if os.path.isfile(file_path):
+                files.append(file_path)
+    except Exception as e:
+        logger.error(f"download_images Exception in local file management: {e}")
     return files
 
 
@@ -490,15 +493,19 @@ def process_pipeline(image_collection, client, config):
     for n in range(len(steps)):
         prompt_content = render_nested_vars(steps[n]["prompt"], base64_image=base64_image, n=n, llm_out=llm_out)
         logger.info(f"\n\tStep {n}: {steps[n]['description']}\n\tPrompt: {str(prompt_content)[:350]} ...")
-        completion = client.chat.completions.create(model="gpt-4o",
-                                                    messages=[
-                                                        {"role": "system",
-                                                         "content": steps[n]["role"]},
-                                                        {"role": "user", "content": prompt_content},
-                                                    ])
-        llm_out.append(completion.choices)
-        logger.debug(f"\n{steps[n]['f_explain'](llm_out[n])}")
-        for F in steps[n]["f_side_effects"]: F(llm_out[n])
+        try:
+            completion = client.chat.completions.create(model="gpt-4o",
+                                                        messages=[
+                                                            {"role": "system",
+                                                             "content": steps[n]["role"]},
+                                                            {"role": "user", "content": prompt_content},
+                                                        ])
+            llm_out.append(completion.choices)
+
+            logger.debug(f"\n{steps[n]['f_explain'](llm_out[n])}")
+            for F in steps[n]["f_side_effects"]: F(llm_out[n])
+        except Exception as e:
+            logger.error(f"Exception in process_pipeline LLM calls - {e}")
 
     try:
         return llm_out[-1][0].message.content  # just choice 0
