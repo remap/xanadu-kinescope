@@ -1,170 +1,198 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
+<head>
+    <meta charset="utf-8"/>
     <title>Oracle of Chrysopoeia</title>
     <!-- xterm.js CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css"/>
     <style>
-      html, body {
-        height: 100%;
-        margin: 0;
-        background-color: #000;
-        color: #eee;
-        display: flex;
-        flex-direction: column;
-      }
-      /* Top container for dynamic HTML (using iframe) */
-      #dynamic-container {
-        height: 60%;
-        width: 100%;
-        border: none;
-      }
-      /* Bottom container for the terminal */
-      #terminal-container {
-        height: 40%;
-        width: 100%;
-      }
-      #input-container {   font-family: sans-serif, helvetica, arial; width: 100%; background: #333; padding: 0.5em; box-sizing: border-box; }
-      #user-input { width: 80%; padding: 0.5em; }
-      #submit-btn { padding: 0.5em 1em; }
+        html, body {
+            height: 100%;
+            margin: 0;
+            background-color: #000;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top container for dynamic HTML (using iframe) */
+        #dynamic-container {
+            height: 60%;
+            width: 100%;
+            border: 2px solid #555;
+            padding: 10px;
+        }
+
+        /* Bottom container for the terminal */
+        #terminal-container {
+            height: 40%;
+            width: 100%;
+            border: 2px solid #555;
+            padding: 10px;
+        }
+
+        #input-container {
+            font-family: sans-serif, helvetica, arial;
+            width: 100%;
+            background: #333;
+            padding: 0.5em;
+            box-sizing: border-box;
+            border: 2px solid #555;
+        }
+
+        #user-input {
+            width: 80%;
+            padding: 0.5em;
+        }
+
+        #submit-btn {
+            padding: 0.5em 1em;
+        }
     </style>
 
-  </head>
-  <body>
-    <!-- The top 60% displays dynamic HTML via an iframe -->
-    <iframe id="dynamic-container" frameborder="0"></iframe>
-    <!-- The bottom 40% holds the xterm.js terminal -->
-    <div id="terminal-container"></div>
-    <div id="input-container">
-      URL:
-      <input type="text" id="user-input" value="https://www.dropbox.com/scl/fi/av5ozrpvhgr9qi5j4r1wg/test_image.jpg?rlkey=kqiq9yd7f7wi06z71p8g36dla&raw=1" />
-      <button id="submit-btn">Submit</button>
-    </div>
+</head>
+<body>
+<!-- The top 60% displays dynamic HTML via an iframe -->
+<iframe id="dynamic-container" frameborder="0"></iframe>
+<!-- The bottom 40% holds the xterm.js terminal -->
+<div id="terminal-container"></div>
+<div id="input-container">
+    <form id="urlForm">
+        URL:&nbsp;
+        <input
+                type="text"
+                id="user-input"
+                value="https://www.dropbox.com/scl/fi/av5ozrpvhgr9qi5j4r1wg/test_image.jpg?rlkey=kqiq9yd7f7wi06z71p8g36dla&raw=1"
+        />
+        <button type="submit" id="submit-btn">Submit</button>
+    </form>
+</div>
 
-    <!-- xterm.js library -->
-    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.js"></script>
+<!-- xterm.js library -->
+<script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.js"></script>
 
-    <script>
-      // Initialize the xterm.js terminal.
-      const fitAddon = new FitAddon.FitAddon();
-      const term = new Terminal({
-          fontSize: 10,        // Set a small font size (adjust as needed)
-  tabStopWidth: 4,     // Set tab stops to 4 spaces
+<script>
+    // Initialize the xterm.js terminal.
+    const fitAddon = new FitAddon.FitAddon();
+    const term = new Terminal({
+        fontSize: 10,        // Set a small font size (adjust as needed)
+        tabStopWidth: 4,     // Set tab stops to 4 spaces
         // cols: 80,
         // rows: 24,
         scrollback: 1000,
         theme: {
-          background: '#111',
-          foreground: '#eee'
+            background: '#111',
+            foreground: '#eee'
         }
-      });
-      term.loadAddon(fitAddon);
-      term.open(document.getElementById('terminal-container'));
-      fitAddon.fit();
-// Helper function to create a reconnecting WebSocket.
-function createWebSocket(url, onMessage, onOpen, onError, onClose) {
-  let socket = new WebSocket(url);
+    });
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('terminal-container'));
+    fitAddon.fit();
 
-  socket.onopen = () => {
-    console.log("Connected to " + url);
-    if (onOpen) onOpen(socket);
-  };
+    // Helper function to create a reconnecting WebSocket.
+    function createWebSocket(url, onMessage, onOpen, onError, onClose) {
+        let socket = new WebSocket(url);
 
-  socket.onmessage = (event) => {
-    // Ignore ping messages.
-    if (event.data === "<<ping>>") {
-      console.log("Received ping from " + url);
-      return;
+        socket.onopen = () => {
+            console.log("Connected to " + url);
+            if (onOpen) onOpen(socket);
+        };
+
+        socket.onmessage = (event) => {
+            // Ignore ping messages.
+            if (event.data === "<<ping>>") {
+                console.log("Received ping from " + url);
+                return;
+            }
+            if (onMessage) onMessage(event);
+        };
+
+        socket.onerror = (err) => {
+            console.error("WebSocket error on " + url + ":", err);
+            if (onError) onError(err);
+        };
+
+        socket.onclose = (e) => {
+            console.warn("WebSocket closed on " + url + ":", e);
+            if (onClose) onClose(e);
+            // Attempt to reconnect after 3 seconds.
+            setTimeout(() => {
+                console.log("Reconnecting to " + url + "...");
+                createWebSocket(url, onMessage, onOpen, onError, onClose);
+            }, 3000);
+        };
+
+        return socket;
     }
-    if (onMessage) onMessage(event);
-  };
 
-  socket.onerror = (err) => {
-    console.error("WebSocket error on " + url + ":", err);
-    if (onError) onError(err);
-  };
-
-  socket.onclose = (e) => {
-    console.warn("WebSocket closed on " + url + ":", e);
-    if (onClose) onClose(e);
-    // Attempt to reconnect after 3 seconds.
-    setTimeout(() => {
-      console.log("Reconnecting to " + url + "...");
-      createWebSocket(url, onMessage, onOpen, onError, onClose);
-    }, 3000);
-  };
-
-  return socket;
-}
-
-// Function to connect the terminal WebSocket.
-function connectTerminal() {
-  createWebSocket(
-    "ws://" + location.host + "/log",
-    (event) => {
-      // onMessage callback.
-    const lines = event.data.split('\n').map(line =>
-    line.length > 160 ? line.substring(0, 160) + "..." : line
-    );
-    const formatted = lines.join('\r\n');
-    term.writeln(formatted);
-    },
-    () => {
-      // onOpen callback.
-      term.writeln("Connected to terminal log source.");
-    },
-    (err) => {
-      // onError callback.
-      term.writeln("Terminal WebSocket error: " + err);
-    },
-    () => {
-      // onClose callback.
-      term.writeln("Terminal WebSocket connection closed.");
+    // Function to connect the terminal WebSocket.
+    function connectTerminal() {
+        createWebSocket(
+            "ws://" + location.host + "/log",
+            (event) => {
+                // onMessage callback.
+                const lines = event.data.split('\n').map(line =>
+                    line.length > 160 ? line.substring(0, 160) + "..." : line
+                );
+                const formatted = lines.join('\r\n');
+                term.writeln(formatted);
+            },
+            () => {
+                // onOpen callback.
+                term.writeln("Connected to terminal log source.");
+            },
+            (err) => {
+                // onError callback.
+                term.writeln("Terminal WebSocket error: " + err);
+            },
+            () => {
+                // onClose callback.
+                term.writeln("Terminal WebSocket connection closed.");
+            }
+        );
     }
-  );
-}
 
-// Function to connect the dynamic HTML WebSocket.
-function connectDynamic() {
-  createWebSocket(
-    "ws://" + location.host + "/dynamic",
-    (event) => {
-      // onMessage callback: update the iframe's srcdoc.
-      const iframe = document.getElementById("dynamic-container");
-      iframe.srcdoc = event.data;
-    },
-    () => {
-      // onOpen callback.
-      console.log("Connected to dynamic HTML source.");
-    },
-    (err) => {
-      // onError callback.
-      console.error("Dynamic WebSocket error:", err);
-    },
-    () => {
-      // onClose callback.
-      console.warn("Dynamic WebSocket connection closed.");
+    // Function to connect the dynamic HTML WebSocket.
+    function connectDynamic() {
+        createWebSocket(
+            "ws://" + location.host + "/dynamic",
+            (event) => {
+                // onMessage callback: update the iframe's srcdoc.
+                const iframe = document.getElementById("dynamic-container");
+                iframe.srcdoc = event.data;
+            },
+            () => {
+                // onOpen callback.
+                console.log("Connected to dynamic HTML source.");
+            },
+            (err) => {
+                // onError callback.
+                console.error("Dynamic WebSocket error:", err);
+            },
+            () => {
+                // onClose callback.
+                console.warn("Dynamic WebSocket connection closed.");
+            }
+        );
     }
-  );
-}
 
-// Initialize both connections.
-connectTerminal();
-connectDynamic();
+    // Initialize both connections.
+    connectTerminal();
+    connectDynamic();
 
-    // Text input submission
-      document.getElementById("submit-btn").addEventListener("click", () => {
+    document.getElementById("urlForm").addEventListener("submit", (e) => {
+        e.preventDefault(); // Prevent the default form submission behavior.
         const inputValue = document.getElementById("user-input").value;
         fetch("/urlinput", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: inputValue })
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({input: inputValue})
         })
-        .then(response => response.json())
-        .then(data => console.log(data));
-      });
-    </script>
-  </body>
+            .then(response => response.json())
+            .then(data => console.log(data))
+            .catch(err => console.error("Error:", err));
+    });
+</script>
+</body>
 </html>

@@ -3,11 +3,11 @@
   "disable_existing_loggers": false,
   "formatters": {
     "default": {
-      "format": "[%(asctime)s] %(name)s: %(levelname)s: %(message)s"
+      "format": "[%(asctime)s] %(levelname)s: %(message)s"
     },
     "color": {
       "()": "__main__.ColorFormatter",
-      "format": "[%(asctime)s] %(name)s: %(levelname)s: %(message)s"
+      "format": "[%(asctime)s] %(levelname)s: %(message)s"
     }
   },
   "handlers": {
