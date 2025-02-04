@@ -21,7 +21,7 @@ SECRETS_FILE = "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json"
 FB_NAMESPACE = "/xanadu/fb_sender_example"
 FB_DB_URL = "https://xanadu-f5762-default-rtdb.firebaseio.com"
 
-CONSOLE_PRINT = False
+CONSOLE_PRINT = True
 PERIOD_SEC = 1.0/60.0 # 60 fps
 
 #import numpy as np
@@ -88,9 +88,15 @@ def align_and_scale_skeletons_flat(flat_kp1, flat_kp2, spine_index=1):
 		return scaled
 
 	center1 = flat_kp1[spine_index * 3:(spine_index * 3) + 2]
+	if CONSOLE_PRINT: print("c1", center1)
+	if CONSOLE_PRINT: print("len c1", len(center1))
 	center2 = flat_kp2[spine_index * 3:(spine_index * 3) + 2]
+	if CONSOLE_PRINT: print("c2", center2)
+	if CONSOLE_PRINT: print("len c2", len(center2))
 
 	aligned_flat_kp2 = flat_kp2.copy()
+	if CONSOLE_PRINT: print(aligned_flat_kp2)
+	if CONSOLE_PRINT: print("al f 2", aligned_flat_kp2)
 	
 	for i in range(18):
 		x, y, v = aligned_flat_kp2[i * 3:(i * 3) + 3]
@@ -132,7 +138,7 @@ def get_bounding_box(keypoints):
 # Flatten keypoints from 2D keypoint arrays
 def flatten_keypoints_2d(keypoints_2d):
 	flattened_keypoints = []
-	for idx, kp in enumerate(keypoints_2d):
+	for _, kp in enumerate(keypoints_2d):
 		flattened_keypoints.extend([kp[0], kp[1], 2])
 	#return np.array(flattened_keypoints)
 	return flattened_keypoints
@@ -205,11 +211,11 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	"""
 	flat_kp1 = flatten_keypoints_2d(keypoints_2d_1)
 	flat_kp2 = flatten_keypoints_2d(keypoints_2d_2)
-	#print("flat1", flat_kp1)
-	#print("flat2", flat_kp2)
+	if CONSOLE_PRINT: print("flat1", flat_kp1)
+	if CONSOLE_PRINT: print("flat2", flat_kp2)
 
 	scaled_flat_kp2 = align_and_scale_skeletons_flat(flat_kp1, flat_kp2)
-	#print("flat2scaled", scaled_flat_kp2)
+	if CONSOLE_PRINT: print("flat2scaled", scaled_flat_kp2)
 
 	#?keypoints_2d_1 = extract_coordinates(flat_kp1)
 	keypoints_2d_2 = extract_coordinates(scaled_flat_kp2) #!have to extract scaled.
@@ -310,7 +316,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	# Read and print the contents of the JSON file
 	with open(ground_truth_file, "r") as f:
 		data = json.load(f)
-		if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
+		#if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
 	#--------------------------------------------------------------------------------------
 	# Create annotations for each set of keypoints
 	annotations = [
@@ -327,7 +333,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	# Read and print the contents of the JSON file
 	with open(output_file, "r") as f:
 		data = json.load(f)
-		if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
+		#if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
 
 #run coco eval
 
@@ -412,6 +418,8 @@ def main():
         'databaseURL': FB_DB_URL
     })
 
+	P1_OFF = False
+
 	ref = db.reference(FB_NAMESPACE)
 	print(f"Firebase database reference: {repr(ref)}")
 	print(f"Period = {(PERIOD_SEC*1000.0):0.3f} ms.")
@@ -469,6 +477,7 @@ def main():
 		T0 = time.time()
 		#!for _ in range(NUM_FRAMES): #setup num frames
 		while True:
+			P1_OFF = False
 			start_time = time.time() - T0
 			accuracy_vals = [] #!record all ppl in frame then avg it out.
 			velocity_vals = []
@@ -479,7 +488,16 @@ def main():
 					print(str(len(body_array)) + " Person(s) detected\n") 
 
 					keypoints_gt = []
+					if CONSOLE_PRINT: print("keypoins_gt", keypoints_gt)
+					if CONSOLE_PRINT: print("body array", body_array)
+					body_array.sort(key=lambda body: int(body.id))#body_array = sorted(body_array, key=lambda body: body.id)
+					if CONSOLE_PRINT: print("body array perhaps sorted", body_array)
+					for body in body_array:
+						if CONSOLE_PRINT: print("next body is,", int(body.id))
+					
 					for idx, body in enumerate(body_array):
+						# if P1_OFF:
+						# 	break
 						#!skip if 1) not OK status or 2) conf < certain threshold?? not sure on this for now.
 						print(f"Person {idx + 1} attributes:")
 						print(" Confidence (" + str(int(body.confidence)) + "/100)")
@@ -492,7 +510,12 @@ def main():
 						if body_params.enable_tracking:
 							print(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state))
 							if repr(body.tracking_state) != "OK":
-								continue
+								if idx == 0: #if int(body.id) == 0:
+									P1_OFF = True
+									print("first index of sorted body IDs not okay, skipping this frame")
+									break
+								else: #a bad detection, don't compare it!
+									continue
 						
 						#!process bounding boxes, keypoints, conf score, area, width, height
 						#can transport and streamline these processes from the ipynb file
@@ -527,18 +550,19 @@ def main():
 			accuracy = 0
 			if len(accuracy_vals) > 0:
 				accuracy = ( sum(accuracy_vals) / len(accuracy_vals) )
-				#print("Accuracy", accuracy)
+				if CONSOLE_PRINT: print("Accuracy", accuracy)
 			data["accuracy"] = accuracy
 			if CONSOLE_PRINT: print("ingrid velocity vals", velocity_vals)
+			velocity = 0
 			if len(velocity_vals) > 0:
-				velocity = 0
 				for value in velocity_vals:
 					if not (value is None or math.isnan(value) or value == float("inf") or value == float("-inf")):
-						velocity += abs(value* 2)
+						velocity += abs(value)
 				#velocity = abs(sum(x * 10 for x in velocity_vals))
 				if CONSOLE_PRINT: print("Velocity", velocity)
-			data["energy"] = velocity
+			data["energy"] = velocity /100
 			data["lag"] = random.uniform(0.0, 1.0) / 10
+			#data["accuracy"] = random.uniform(0.0, 1.0) / 10 #!use for testing camera.
 			print("frame data", data)
 			ref.set(
             	{"data": data}
