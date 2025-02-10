@@ -21,7 +21,7 @@ SECRETS_FILE = "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json"
 FB_NAMESPACE = "/xanadu/fb_sender_example"
 FB_DB_URL = "https://xanadu-f5762-default-rtdb.firebaseio.com"
 
-CONSOLE_PRINT = True
+CONSOLE_PRINT = False
 PERIOD_SEC = 1.0/60.0 # 60 fps
 
 #import numpy as np
@@ -32,7 +32,7 @@ import pyzed.sl as sl
 #import cv2
 #import numpy as np
 import json
-NUM_FRAMES = 25
+NUM_FRAMES = 12
 
 def fb_callback(result):
     print("Firebase async return", result)
@@ -88,15 +88,15 @@ def align_and_scale_skeletons_flat(flat_kp1, flat_kp2, spine_index=1):
 		return scaled
 
 	center1 = flat_kp1[spine_index * 3:(spine_index * 3) + 2]
-	if CONSOLE_PRINT: print("c1", center1)
-	if CONSOLE_PRINT: print("len c1", len(center1))
+	#if CONSOLE_PRINT: print("c1", center1)
+	#if CONSOLE_PRINT: print("len c1", len(center1))
 	center2 = flat_kp2[spine_index * 3:(spine_index * 3) + 2]
-	if CONSOLE_PRINT: print("c2", center2)
-	if CONSOLE_PRINT: print("len c2", len(center2))
+	#if CONSOLE_PRINT: print("c2", center2)
+	#if CONSOLE_PRINT: print("len c2", len(center2))
 
 	aligned_flat_kp2 = flat_kp2.copy()
-	if CONSOLE_PRINT: print(aligned_flat_kp2)
-	if CONSOLE_PRINT: print("al f 2", aligned_flat_kp2)
+	#if CONSOLE_PRINT: print(aligned_flat_kp2)
+	#if CONSOLE_PRINT: print("al f 2", aligned_flat_kp2)
 	
 	for i in range(18):
 		x, y, v = aligned_flat_kp2[i * 3:(i * 3) + 3]
@@ -390,6 +390,37 @@ def run_coco_eval():
 	print(f"Pulled Out Average Precision Stat (AP) = {average_precision}")
 	return average_precision
 
+#--------------------------DTW code----------------------------------------
+import numpy as np
+from dtaidistance import dtw
+
+class Score(object):
+
+	def percentage_score(self,score):   #To be replaced with a better scoring algorithm, if found in the future
+		percentage =  100 - (score* 100)
+		return int(percentage)
+
+	def dtwdis(self,model_points,input_points,i,j):
+		#model_points = model_points.reshape(2*j,)
+		#input_points = input_points.reshape(2*i,)
+		model_points = model_points.flatten()
+		input_points = input_points.flatten()
+		model_points = model_points/ np.linalg.norm(model_points)
+		input_points = input_points/np.linalg.norm(input_points)
+		return self.percentage_score(dtw.distance(model_points, input_points))
+
+	def normalize(self,input_test):
+		for k in range(0,17):
+			input_test[:,k] = input_test[:,k]/np.linalg.norm(input_test[:,k])
+		return input_test
+
+	def compare(self,ip,model,i,j):
+		ip = self.normalize(ip)
+		scores = []
+		for k in range(0,17):
+			scores.append(self.dtwdis(ip[:,k],model[:,k],i,j))
+		return np.mean(scores),scores
+
 #----------------------------------------------------Driver code-------------------------------------------
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
@@ -419,6 +450,7 @@ def main():
     })
 
 	P1_OFF = False
+	DTW_USED = True
 
 	ref = db.reference(FB_NAMESPACE)
 	print(f"Firebase database reference: {repr(ref)}")
@@ -475,12 +507,24 @@ def main():
 			
 		#Capture the data.
 		T0 = time.time()
+
+		dtw_dict = {} #holds key, index. value, keypoints. 
+		frame_ctr = 0
+		s = Score()
+		final_score, score_list = 0, None
+
 		#!for _ in range(NUM_FRAMES): #setup num frames
-		while True:
+
+		for fff in range(NUM_FRAMES):#while True:
+			print(f"-----------------------------------------Frame {fff}---------------------------------------------")
 			P1_OFF = False
 			start_time = time.time() - T0
 			accuracy_vals = [] #!record all ppl in frame then avg it out.
 			velocity_vals = []
+			
+			frame_ctr += 1
+			if CONSOLE_PRINT: print("frame ctr", frame_ctr)
+
 			if zed.grab() == sl.ERROR_CODE.SUCCESS:
 				err = zed.retrieve_bodies(bodies, body_runtime_param)
 				if bodies.is_new:
@@ -516,6 +560,9 @@ def main():
 									break
 								else: #a bad detection, don't compare it!
 									continue
+							else:
+								dtw_dict.setdefault(idx, []).append([[kp[0], kp[1]] for kp in body.keypoint_2d])
+								if CONSOLE_PRINT: print("curr frame dict looks like", dtw_dict)
 						
 						#!process bounding boxes, keypoints, conf score, area, width, height
 						#can transport and streamline these processes from the ipynb file
@@ -545,13 +592,42 @@ def main():
 							#file.write("\n")
 							#print("\n")
 
+			#----DTW Code---------------------
+			if frame_ctr == 3:
+				frame_ctr = 0
+				#dtw_curr_frame_dict = {} #clear the dict.
+				sorted_keys = sorted(dtw_dict.keys())  # Sort keys in ascending order
+				if sorted_keys:  # Ensure there are keys to process
+					dancer_1 = dtw_dict[sorted_keys[0]]  # Select the lowest key as dancer 1
+					print("dancer_1 len", len(dancer_1))
+					print("dancer 1", dancer_1)
+					for k in sorted_keys[1:]:  # Iterate through the rest as dancer 2
+						dancer_2 = dtw_dict[k]
+						print("dancer_2 len", len(dancer_2))
+						print("dancer 2", dancer_2)
+						if len(dancer_2) < 2:
+							continue #skp this frame, not enough data, instead send OKS accuracy value?
+						new_final_score, score_list = s.compare(np.asarray(dancer_1), np.asarray(dancer_2), len(dancer_1), len(dancer_2))
+						if len(dancer_1) != len(dancer_2):
+							print("found mismatch lengths")
+						print("score list", score_list)
+						print("new fin score", new_final_score)
+						final_score += new_final_score #aggregate all the dancers over the frames and sum all their accuracies to account for everyone
+					dtw_dict = {} # reset the dict
+			#!otherwise, use OKS for the frame? else: use oks, etc.
+
 			if CONSOLE_PRINT: print("Each Skeleton Accuracy against GT =", accuracy_vals)
-		
+
+			# -- ACCURACY VALS ---
 			accuracy = 0
 			if len(accuracy_vals) > 0:
 				accuracy = ( sum(accuracy_vals) / len(accuracy_vals) )
-				if CONSOLE_PRINT: print("Accuracy", accuracy)
 			data["accuracy"] = accuracy
+			if DTW_USED and final_score !=0:
+				data["accuracy"] = final_score / 100
+			if CONSOLE_PRINT: print("Accuracy", accuracy)
+
+			# -- VELOCITY VALS ---
 			if CONSOLE_PRINT: print("ingrid velocity vals", velocity_vals)
 			velocity = 0
 			if len(velocity_vals) > 0:
@@ -561,6 +637,8 @@ def main():
 				#velocity = abs(sum(x * 10 for x in velocity_vals))
 				if CONSOLE_PRINT: print("Velocity", velocity)
 			data["energy"] = velocity /100
+			
+			# -- TIMING VALS ---
 			data["lag"] = random.uniform(0.0, 1.0) / 10
 			#data["accuracy"] = random.uniform(0.0, 1.0) / 10 #!use for testing camera.
 			print("frame data", data)
