@@ -32,7 +32,7 @@ import pyzed.sl as sl
 #import cv2
 #import numpy as np
 import json
-NUM_FRAMES = 12
+NUM_FRAMES = 12000
 
 def fb_callback(result):
     print("Firebase async return", result)
@@ -393,6 +393,7 @@ def run_coco_eval():
 #--------------------------DTW code----------------------------------------
 import numpy as np
 from dtaidistance import dtw
+from scipy import signal
 
 class Score(object):
 
@@ -451,6 +452,7 @@ def main():
 
 	P1_OFF = False
 	DTW_USED = True
+	FILE_WRITE = False
 
 	ref = db.reference(FB_NAMESPACE)
 	print(f"Firebase database reference: {repr(ref)}")
@@ -552,7 +554,9 @@ def main():
 						gt_keypoints = []
 	
 						if body_params.enable_tracking:
+							if FILE_WRITE: file = open("outputSkeletons.txt", "a")
 							print(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state))
+							if FILE_WRITE: file.write(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state) + "\n")
 							if repr(body.tracking_state) != "OK":
 								if idx == 0: #if int(body.id) == 0:
 									P1_OFF = True
@@ -564,23 +568,23 @@ def main():
 								dtw_dict.setdefault(idx, []).append([[kp[0], kp[1]] for kp in body.keypoint_2d])
 								if CONSOLE_PRINT: print("curr frame dict looks like", dtw_dict)
 						
-						#!process bounding boxes, keypoints, conf score, area, width, height
-						#can transport and streamline these processes from the ipynb file
-						# for it in body.keypoint_2d:
-							#     print("    " + str(it))
-							#     file.write("    " + str(it) + "\n")
+							#!process bounding boxes, keypoints, conf score, area, width, height
+							#can transport and streamline these processes from the ipynb file
+							for it in body.keypoint_2d:
+								if CONSOLE_PRINT: print("    " + str(it))
+								if FILE_WRITE: file.write("    " + str(it) + "\n")
 
-						#!Flatten keypoints
+							#!Flatten keypoints
 							# Flattened keypoints array with visibility flag `2` and removing keypoint at index 1
 							#flattened_keypoints = []
 							for _, kp in enumerate(body.keypoint_2d):
 								#!!if idx == 1:  # Skip the neck
 								#!	continue
 								gt_keypoints.append([kp[0], kp[1]])  # Append x, y, and visibility
-
 							# Print the flattened array
 							if CONSOLE_PRINT: print("ingrid flat key", gt_keypoints)
 							#print("ingrid bounding box?", body.bounding_box_2d)
+							if FILE_WRITE: file.close()
 
 						#TODO: put right bodies in corresponding JSON files, right now: 
 						#1. First Person is GT_aann
@@ -589,11 +593,27 @@ def main():
 							keypoints_gt = gt_keypoints.copy()
 						else: #otherwise we open a different file
 							eval_skeleton_loop(accuracy_vals, keypoints_gt, gt_keypoints)
+
+							'''OLD  cross corre
+							dancer_1 = np.array(keypoints_gt)
+							#print("dancer_1",keypoints_gt)
+							dancer_2 = np.array(gt_keypoints)
+							#print("dancer_2",gt_keypoints)
+							lags = signal.correlation_lags(dancer_1[:, 0].size, dancer_2[:, 0].size, mode="full")
+
+							corrX = signal.correlate(dancer_1[:, 0], dancer_2[:, 0], mode='full')
+							corrY = signal.correlate(dancer_1[:, 1], dancer_2[:, 1], mode='full')
+
+							lagX = lags[np.argmax(corrX)]
+							lagY = lags[np.argmax(corrY)]
+
+							print("INGRID LAG",  (lagX + lagY) / 2)  # average the lag accross axes?'''
 							#file.write("\n")
 							#print("\n")
 
 			#----DTW Code---------------------
-			if frame_ctr == 3:
+			avgLag = 0
+			if frame_ctr == 15:
 				frame_ctr = 0
 				#dtw_curr_frame_dict = {} #clear the dict.
 				sorted_keys = sorted(dtw_dict.keys())  # Sort keys in ascending order
@@ -613,6 +633,32 @@ def main():
 						print("score list", score_list)
 						print("new fin score", new_final_score)
 						final_score += new_final_score #aggregate all the dancers over the frames and sum all their accuracies to account for everyone
+
+						#cross corre here
+						dancer_1 = np.array(dancer_1) 
+						dancer_2 = np.array(dancer_2) 
+
+						#print("dancer 1 shape",dancer_1.shape)  # Should be (min_size, num_keypoints)
+						#print("dancer 2 shape",dancer_2.shape)  # Should be (min_size, num_keypoints)
+						min_size = min(len(dancer_1[:, 0]), len(dancer_2[:, 0])) #! make dancer 1 and dancer 2 the same size. 
+						dancer_1 = dancer_1[:min_size]
+						dancer_2 = dancer_2[:min_size]
+						#print(dancer_1.shape)  # Should be (min_size, num_keypoints)
+						#print(dancer_2.shape)  # Should be (min_size, num_keypoints)
+
+						lags = signal.correlation_lags(dancer_1[:, 0].size, dancer_2[:, 0].size, mode="full")
+
+						corrX = signal.correlate(dancer_1[:, 0], dancer_2[:, 0], mode='full')
+						corrY = signal.correlate(dancer_1[:, 1], dancer_2[:, 1], mode='full')
+						
+						#print(f"corrX shape: {corrX.shape}, lags shape: {lags.shape}")
+						 
+
+						lagX = lags[np.argmax(corrX)]
+						lagY = lags[np.argmax(corrY)]
+
+						avgLag = (lagX + lagY) / 2
+						if CONSOLE_PRINT: print("CROSS CORRE LAG",  avgLag)  # average the lag accross axes?
 					dtw_dict = {} # reset the dict
 			#!otherwise, use OKS for the frame? else: use oks, etc.
 
@@ -622,9 +668,9 @@ def main():
 			accuracy = 0
 			if len(accuracy_vals) > 0:
 				accuracy = ( sum(accuracy_vals) / len(accuracy_vals) )
-			data["accuracy"] = accuracy
+			data["accuracy"] = 1 if accuracy > 1 else accuracy
 			if DTW_USED and final_score !=0:
-				data["accuracy"] = final_score / 100
+				data["accuracy"] = 1 if (final_score / 1500) > 1 else (final_score / 1500) 
 			if CONSOLE_PRINT: print("Accuracy", accuracy)
 
 			# -- VELOCITY VALS ---
@@ -636,15 +682,21 @@ def main():
 						velocity += abs(value)
 				#velocity = abs(sum(x * 10 for x in velocity_vals))
 				if CONSOLE_PRINT: print("Velocity", velocity)
-			data["energy"] = velocity /100
-			
+			data["energy"] = 1 if (velocity / 2) > 1 else velocity / 2 
+ 	
 			# -- TIMING VALS ---
-			data["lag"] = random.uniform(0.0, 1.0) / 10
+			data["lag"] = 1 if (avgLag / 100) > 1 else (avgLag / 100)
 			#data["accuracy"] = random.uniform(0.0, 1.0) / 10 #!use for testing camera.
 			print("frame data", data)
+
 			ref.set(
             	{"data": data}
 			)
+			if FILE_WRITE:
+				file = open("outputSkeletons.txt", "a")
+				for key, value in data.items():
+					file.write(f"{key}: {value}\n")
+				file.close()
 			if CONSOLE_PRINT: print(f"{start_time:0.3f}: {data}")
 			elapsed_time = time.time() - T0 - start_time
 			time.sleep(max(0, PERIOD_SEC - elapsed_time))
