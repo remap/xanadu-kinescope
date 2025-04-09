@@ -38,9 +38,22 @@ make_oracle_pipeline = lambda depends: [
         "prompt": [
             {"type": "text",
              "text": """
-                Write a five-minute, three to four section jazzercise choreography for a broad audience in english inspired by this poem, 
-                no more than two moves per section. Do not elaborate or explain, provide the choreography in plain 
-                text only. Cite the lines of the poem that inspire the moves starting with 'Inspiration: ...' 
+                I have a bank of 12 dance moves: 
+                1) peace eyes with 60's arms
+                2) Point to Self
+                3) Step Touch in place
+                4) Shoulder Groove
+                5) Sprinkler Point w/ Stomp
+                6) Sunshine Arms
+                7) Speaker to Mouth
+                8) Hand to Ear w/ Neighbor
+                9) Wipe with Step Touch
+                10) Firework Arms
+                11) Punch Ups
+                12) Rodeo Arms.
+                Using moves from the above dance move bank, write a five-minute, three to four section jazzercise choreography for a 
+                broad audience in english inspired by this poem, no more than two moves per section. Do not elaborate or explain, 
+                provide the choreography in plain text only. Cite the lines of the poem that inspire the moves starting with 'Inspiration: ...' 
                 """},
             {"type": "text", "text": "{{llm_out[n-2][0].message.content}}"},
             {"type": "text", "text": "{{llm_out[n-1][0].message.content}}"}
