@@ -17,7 +17,7 @@ In your ZED SDK folder on your laptop run the following
 
 `pip install dtaidistance`
 
-`pip install firebase`
+DO NOT PIP INSTALL FIREBASE -- IT WILL INTERFERE WITH THE SUBMODULE AND CAUSE IMPORT ISSUES.
 
 `pip install firebase-admin`
 
