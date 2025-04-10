@@ -6,7 +6,7 @@ import math
 # load firebase client library from our submodule (supports anon auth)
 # based on https://bitbucket.org/joetilsed/firebase/src/master/
 # doesn't require admin access=
-#from firebase.firebase import firebase as _firebase
+from firebase.firebase import firebase as _firebase
    
 # auth
 import google
@@ -619,41 +619,33 @@ def main():
 				sorted_keys = sorted(dtw_dict.keys())  # Sort keys in ascending order
 				if sorted_keys:  # Ensure there are keys to process
 					dancer_1 = dtw_dict[sorted_keys[0]]  # Select the lowest key as dancer 1
-					print("dancer_1 len", len(dancer_1))
-					print("dancer 1", dancer_1)
+					if CONSOLE_PRINT: print("dancer_1 len", len(dancer_1))
+					if CONSOLE_PRINT: print("dancer 1", dancer_1)
 					for k in sorted_keys[1:]:  # Iterate through the rest as dancer 2
 						dancer_2 = dtw_dict[k]
-						print("dancer_2 len", len(dancer_2))
-						print("dancer 2", dancer_2)
+						if CONSOLE_PRINT: print("dancer_2 len", len(dancer_2))
+						if CONSOLE_PRINT: print("dancer 2", dancer_2)
 						if len(dancer_2) < 2:
 							continue #skp this frame, not enough data, instead send OKS accuracy value?
 						new_final_score, score_list = s.compare(np.asarray(dancer_1), np.asarray(dancer_2), len(dancer_1), len(dancer_2))
 						if len(dancer_1) != len(dancer_2):
 							print("found mismatch lengths")
-						print("score list", score_list)
-						print("new fin score", new_final_score)
+						if CONSOLE_PRINT: print("score list", score_list)
+						if CONSOLE_PRINT: print("new fin score", new_final_score)
 						final_score += new_final_score #aggregate all the dancers over the frames and sum all their accuracies to account for everyone
 
 						#cross corre here
 						dancer_1 = np.array(dancer_1) 
-						dancer_2 = np.array(dancer_2) 
-
-						#print("dancer 1 shape",dancer_1.shape)  # Should be (min_size, num_keypoints)
-						#print("dancer 2 shape",dancer_2.shape)  # Should be (min_size, num_keypoints)
+						dancer_2 = np.array(dancer_2)  
 						min_size = min(len(dancer_1[:, 0]), len(dancer_2[:, 0])) #! make dancer 1 and dancer 2 the same size. 
 						dancer_1 = dancer_1[:min_size]
-						dancer_2 = dancer_2[:min_size]
-						#print(dancer_1.shape)  # Should be (min_size, num_keypoints)
-						#print(dancer_2.shape)  # Should be (min_size, num_keypoints)
+						dancer_2 = dancer_2[:min_size] 
 
 						lags = signal.correlation_lags(dancer_1[:, 0].size, dancer_2[:, 0].size, mode="full")
 
 						corrX = signal.correlate(dancer_1[:, 0], dancer_2[:, 0], mode='full')
 						corrY = signal.correlate(dancer_1[:, 1], dancer_2[:, 1], mode='full')
-						
-						#print(f"corrX shape: {corrX.shape}, lags shape: {lags.shape}")
-						 
-
+						  
 						lagX = lags[np.argmax(corrX)]
 						lagY = lags[np.argmax(corrY)]
 
