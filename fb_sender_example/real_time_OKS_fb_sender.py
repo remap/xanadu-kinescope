@@ -6,7 +6,7 @@ import math
 # load firebase client library from our submodule (supports anon auth)
 # based on https://bitbucket.org/joetilsed/firebase/src/master/
 # doesn't require admin access=
-from firebase.firebase import firebase as _firebase
+#from firebase.firebase import firebase as _firebase
    
 # auth
 import google
@@ -557,7 +557,7 @@ def main():
 							if FILE_WRITE: file = open("outputSkeletons.txt", "a")
 							print(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state))
 							if FILE_WRITE: file.write(" Tracking ID: " + str(int(body.id)) + " tracking state: " + repr(body.tracking_state) + " / " + repr(body.action_state) + "\n")
-							if repr(body.tracking_state) != "OK":
+							if repr(body.tracking_state) != "OK" and repr(body.action_state) != "MOVING": #remove IDLE bodies.
 								if idx == 0: #if int(body.id) == 0:
 									P1_OFF = True
 									print("first index of sorted body IDs not okay, skipping this frame")
@@ -613,7 +613,7 @@ def main():
 
 			#----DTW Code---------------------
 			avgLag = 0
-			if frame_ctr == 15:
+			if frame_ctr == 60:
 				frame_ctr = 0
 				#dtw_curr_frame_dict = {} #clear the dict.
 				sorted_keys = sorted(dtw_dict.keys())  # Sort keys in ascending order
