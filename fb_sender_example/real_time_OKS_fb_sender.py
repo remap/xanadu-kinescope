@@ -24,14 +24,10 @@ FB_DB_URL = "https://xanadu-f5762-default-rtdb.firebaseio.com"
 CONSOLE_PRINT = False
 PERIOD_SEC = 1.0/60.0 # 60 fps
 
-#import numpy as np
 import matplotlib.pyplot as plt
 import json
-
 import pyzed.sl as sl
-#import cv2
-#import numpy as np
-import json
+
 NUM_FRAMES = 12000
 
 def fb_callback(result):
@@ -224,6 +220,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 	bounding_box_1 = get_bounding_box(keypoints_2d_1)
 	bounding_box_2 = get_bounding_box(keypoints_2d_2)
 
+	'''Code to plot with PLT if you want to visualize.'''
 	#!plotting_skeletons(keypoints_2d_1, keypoints_2d_2, bounding_box_1, bounding_box_2)
 	#plotting_skeletons(keypoints_2d_1, scaled_flat_kp2, bounding_box_1, bounding_box_2)
 	# plt.figure(figsize=(10, 15))
@@ -250,34 +247,8 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 
 	#--------------------------------------------------------------------------------------
 	#Create gt ann
-
-	# Path to the ground truth JSON file
 	ground_truth_file = "ground_truth.json"
 
-	# # Load existing ground truth JSON file
-	# with open(ground_truth_file, "r") as f:
-	#     ground_truth = json.load(f)
-
-	# # Get the next available annotation ID (increment the last existing annotation ID)
-	# if ground_truth["annotations"]:
-	#     next_annotation_id = max(ann["id"] for ann in ground_truth["annotations"]) + 1
-	# else:
-	#     next_annotation_id = 1  # Start from 1 if no annotations exist
-
-	# Create a new annotation for flat_kp1
-	'''gt_annotations = [create_gt_annotation(
-		image_id=1,
-		category_id=1,
-		keypoints=flat_kp1,
-		bounding_box=bounding_box_1,
-		annotation_id=1, #always only 1 annot?
-		area=bounding_box_1[2] * bounding_box_1[3]  # area = width * height
-	)]
-	ground_truth_file = "ground_truth.json"
-	with open(ground_truth_file, "w") as f:
-		json.dump(gt_annotations, f, indent=4)
-
-	print(f"Annotations have been saved to {ground_truth_file}")'''
 	# Structure of the ground truth JSON file
 	ground_truth = {
 		"info": {},
@@ -304,10 +275,7 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 		]
 	}
 
-	# Path to the ground truth JSON file
 	ground_truth_file = "gt_ann.json"
-
-	# Write the ground truth JSON file
 	with open(ground_truth_file, "w") as f:
 		json.dump(ground_truth, f, indent=4)
 
@@ -336,8 +304,6 @@ def main_loop(keypoints_2d_1, keypoints_2d_2, score=0.92): #I set random score d
 		#if CONSOLE_PRINT: print(json.dumps(data, indent=4))  # Pretty print the JSON data
 
 #run coco eval
-
-
 def run_coco_eval():
 	# Paths to your files
 	ground_truth_file = "gt_ann.json"
@@ -461,7 +427,6 @@ def main():
 	data = {"energy": 0, "accuracy": 0, "lag": 0}
 	#data["energy"] = random.uniform(-100.0, 100.0)
 	#data["lag"] = random.uniform(0.0, 1.0)
-	#!accuracy_vals = []
 
 	if not EVAL_FILE:
 		# Create a Camera object
@@ -542,8 +507,6 @@ def main():
 						if CONSOLE_PRINT: print("next body is,", int(body.id))
 					
 					for idx, body in enumerate(body_array):
-						# if P1_OFF:
-						# 	break
 						#!skip if 1) not OK status or 2) conf < certain threshold?? not sure on this for now.
 						print(f"Person {idx + 1} attributes:")
 						print(" Confidence (" + str(int(body.confidence)) + "/100)")
@@ -576,14 +539,12 @@ def main():
 
 							#!Flatten keypoints
 							# Flattened keypoints array with visibility flag `2` and removing keypoint at index 1
-							#flattened_keypoints = []
 							for _, kp in enumerate(body.keypoint_2d):
 								#!!if idx == 1:  # Skip the neck
 								#!	continue
 								gt_keypoints.append([kp[0], kp[1]])  # Append x, y, and visibility
 							# Print the flattened array
 							if CONSOLE_PRINT: print("ingrid flat key", gt_keypoints)
-							#print("ingrid bounding box?", body.bounding_box_2d)
 							if FILE_WRITE: file.close()
 
 						#TODO: put right bodies in corresponding JSON files, right now: 
@@ -661,7 +622,7 @@ def main():
 			if len(accuracy_vals) > 0:
 				accuracy = ( sum(accuracy_vals) / len(accuracy_vals) )
 			data["accuracy"] = 1 if accuracy > 1 else accuracy
-			if DTW_USED and final_score !=0:
+			if DTW_USED and (frame_ctr < 60 and frame_ctr >=50) and final_score !=0: #! balance 10 frames of DTW to 50 frames of OKS. 
 				data["accuracy"] = 1 if (final_score / 1500) > 1 else (final_score / 1500) 
 			if CONSOLE_PRINT: print("Accuracy", accuracy)
 
