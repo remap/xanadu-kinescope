@@ -477,6 +477,7 @@ def main():
 
 		dtw_dict = {} #holds key, index. value, keypoints. 
 		frame_ctr = 0
+		avgLag = 0
 		s = Score()
 		final_score, score_list = 0, None
 
@@ -573,7 +574,7 @@ def main():
 							#print("\n")
 
 			#----DTW Code---------------------
-			avgLag = 0
+			#!avgLag = 0
 			if frame_ctr == 60:
 				frame_ctr = 0
 				#dtw_curr_frame_dict = {} #clear the dict.
@@ -638,7 +639,8 @@ def main():
 			data["energy"] = 1 if (velocity / 2) > 1 else velocity / 2 
  	
 			# -- TIMING VALS ---
-			data["lag"] = 1 if (avgLag / 100) > 1 else (avgLag / 100)
+			#!data["lag"] = 1 if (avgLag / 100) > 1 else (avgLag / 100)
+			data["lag"] = 0 if (avgLag / 100) > 1 else (1-(avgLag / 100))
 			#data["accuracy"] = random.uniform(0.0, 1.0) / 10 #!use for testing camera.
 			print("frame data", data)
 
