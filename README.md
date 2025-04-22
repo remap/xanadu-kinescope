@@ -5,11 +5,9 @@ In your ZED SDK folder on your laptop run the following
 
 `pip install requests google.auth`
 
-`pip install numpy==1.26.4`
-
-`pip install requests`
-
 `python get_python_api.py  (From zed SDK folder, might require permisions)`
+
+`pip install numpy==1.26.4`
 
 `pip install matplotlib==3.8.4`
 
