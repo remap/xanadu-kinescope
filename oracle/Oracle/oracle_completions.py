@@ -51,8 +51,8 @@ make_oracle_pipeline = lambda depends: [
                 10) Firework Arms
                 11) Punch Ups
                 12) Rodeo Arms.
-                Using moves from the above dance move bank, write a five-minute, three to four section jazzercise choreography for a 
-                broad audience in english inspired by this poem, no more than two moves per section. Do not elaborate or explain, 
+                Using moves from the above dance move bank, write a five-minute, three section jazzercise choreography for a 
+                broad audience in english inspired by this poem, no more than one move per section. Do not elaborate or explain, 
                 provide the choreography in plain text only. Cite the lines of the poem that inspire the moves starting with 'Inspiration: ...' 
                 """},
             {"type": "text", "text": "{{llm_out[n-2][0].message.content}}"},
