@@ -25,7 +25,7 @@ make_oracle_pipeline = lambda depends: [
             {"type": "text",
              "text": """
                 Translate this poem to English without explanation, additional formatting, or elaboration. 
-                Maintain the three verse section
+                Maintain the three verse section, and make the lines in the first and third line of each verse rhyme.
                 """},
             {"type": "text", "text": "{{llm_out[n-1][0].message.content}}"}
         ],
@@ -39,18 +39,18 @@ make_oracle_pipeline = lambda depends: [
             {"type": "text",
              "text": """
                 I have a bank of 12 dance moves: 
-                1) peace eyes with 60's arms
-                2) Point to Self
-                3) Step Touch in place
-                4) Shoulder Groove
-                5) Sprinkler Point w/ Stomp
-                6) Sunshine Arms
-                7) Speaker to Mouth
-                8) Hand to Ear w/ Neighbor
-                9) Wipe with Step Touch
-                10) Firework Arms
-                11) Punch Ups
-                12) Rodeo Arms.
+                1) peace eyes with 60's arms: do peace signs over the eyes and then lift each arm up above head with a fist.
+                2) Point to Self: Use thumbs to point as self, heels shift left and right. 
+                3) Step Touch in place: Snap fingers, feet take turns step touching with a bit of a shoulder groove.
+                4) Shoulder Groove: Step side to side as shoulders go up and down. 
+                5) Sprinkler Point w/ Stomp: Point arm out for four counts with a heel stomp then switch sides.
+                6) Sunshine Arms: Open arms up above head with a little hip shake. 
+                7) Speaker to Mouth: Put hands near mouth and turn body to diagonals. 
+                8) Hand to Ear w/ Neighbor: Put hand to ear and lean body towards left and right.
+                9) Wipe with Step Touch: Swipe arms back and forth in front of torso and step side to side.
+                10) Firework Arms: Burst fingers up left, up right, down left, down right with a little groove. 
+                11) Punch Ups: Pump both arms up in the air and switch hips. 
+                12) Rodeo Arms: Swirl arms above hips standing, Swirl arms with a plie. 
                 Using moves from the above dance move bank, write a five-minute, three section jazzercise choreography for a 
                 broad audience in english inspired by this poem, no more than one move per section. Do not elaborate or explain, 
                 provide the choreography in plain text only. Cite the lines of the poem that inspire the moves starting with 'Inspiration: ...' 
@@ -67,14 +67,14 @@ make_oracle_pipeline = lambda depends: [
         "prompt": [
             {"type": "text",
              "text": """
-                Convert the following five-minute, three to four section jazzercise choreography description into a 
+                Convert the following five-minute, three section jazzercise choreography description into a 
                 complete, well-formatted HTML5 document, black background, white sans-serif text, containing a table 
                 (with gridlines) with section, moves described as bullets, and inspiration, for a human leader to on 
-                the flyrefer to in teaching a new class. Each section should have no more than two moves that are 
+                the fly to refer to in teaching a new class. Each section should have no more than one move that is 
                 clearly and concisely describe.  Do not include a title.   Format the table to use the entire document 
                 width. The only CSS should be to set san-serif and yellow font color to identify specific body movements,
                 as well ensuring line spacing that is easily readable at a distance.
-                Do not use list formatting in the inspiration column, and put very short catchy section titles in the section column.
+                Do not use list formatting in the inspiration column, and put very short catchy section titles in the section column based off the line of inspiration from the poem.
                 The inspirational poem is included for reference and should be provided verbatim in both English and Greek after 
                 the table, with no title, greek lines (color #999) interleaved with the english translation (color #eee), preserving original line breaks using the <br/> tag.   
                 """},
