@@ -303,7 +303,7 @@ def download_images(image_urls, folder_path, max_threads):
 
 
         except Exception as e:
-            logger.error(f"Error downloading image: {e}")
+            logger.error(f"Error downloading image", exc_info=True)
 
     with ThreadPoolExecutor(max_threads) as executor:
         for i, url in enumerate(image_urls):
@@ -316,7 +316,7 @@ def download_images(image_urls, folder_path, max_threads):
             if os.path.isfile(file_path):
                 files.append(file_path)
     except Exception as e:
-        logger.error(f"download_images Exception in local file management: {e}")
+        logger.error(f"download_images Exception in local file management", exc_info=True)
     return files
 
 # Base64 encoding for uploaded images to send to OpenAI API
