@@ -201,6 +201,9 @@ style="position:absolute; bottom:50px; left:0; width:vw; opacity:75%; object-fit
                 // onMessage callback: update the iframe's srcdoc.
                 const iframe = document.getElementById("dynamic-container");
                 iframe.srcdoc = event.data;
+                // update image
+                    document.getElementById('console-image').src =
+  'https://xanadu-public.s3.us-west-2.amazonaws.com/summary.jpg?_='+Date.now();
             },
             () => {
                 // onOpen callback.
