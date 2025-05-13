@@ -46,7 +46,6 @@
 /* force xterm’s canvas/text layers to be transparent and above the image */
 #terminal-container .xterm,
 #terminal-container .xterm-viewport {
-  position: relative;
   z-index: 1;
   background: transparent !important;
     text-shadow: 1px 1px 2px black;
@@ -54,6 +53,8 @@
         #input-container {
             font-family: sans-serif, helvetica, arial;
             width: 100%;
+            position:absolute;
+            bottom: 0 ;
             background: #333;
             padding: 0.5em;
             box-sizing: border-box;
@@ -66,7 +67,7 @@
         }
 
         #submit-btn {
-            padding: 0.5em 1em;
+            padding: 0.5em 1em
         }
 
     </style>
@@ -80,7 +81,7 @@
 
 </div>
 <img id="console-image" src="https://xanadu-public.s3.us-west-2.amazonaws.com/summary.jpg" width="100%" alt=""
-style="position:absolute; bottom:0; left:0; width:vw; opacity:50%; object-fit:cover; z-index:0;"/>
+style="position:absolute; bottom:50px; left:0; width:vw; opacity:75%; object-fit:cover; z-index:0;"/>
 
 <div id="input-container" style="z-index:2; opacity:50%;">
     <form id="urlForm">
