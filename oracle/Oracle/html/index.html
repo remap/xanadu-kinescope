@@ -97,7 +97,7 @@ style="position:absolute; bottom:50px; left:0; width:vw; opacity:75%; object-fit
         <button type="submit" id="submit-btn"
         onclick="
             var input = document.getElementById('user-input');
-            input.value = input.value.split('?')[0] + '?_=' + Date.now()
+            input.value = input.value.split('?')[0] + '?_=' + Date.now();
             document.getElementById('console-image').src =  input.value;"
                  >Submit</button>
     </form>
@@ -109,7 +109,8 @@ style="position:absolute; bottom:50px; left:0; width:vw; opacity:75%; object-fit
 
 <script>
 
-
+    document.getElementById('console-image').src =
+  'https://xanadu-public.s3.us-west-2.amazonaws.com/summary.jpg?_='+Date.now();
 
     // Initialize the xterm.js terminal.
     const fitAddon = new FitAddon.FitAddon();

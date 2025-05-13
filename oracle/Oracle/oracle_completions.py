@@ -81,7 +81,7 @@ make_oracle_pipeline = lambda depends: [
                 the fly to refer to in teaching a new class. Each section should have no more than one move that is 
                 clearly and concisely describe.  Do not include a title.   Format the table to use the entire document 
                 width. The only CSS should be to set san-serif and yellow font color to identify specific body movements,
-                as well ensuring line spacing that is easily readable at a distance.
+                as well ensuring line spacing that is easily readable at a distance.  Use 24px font and screen-width tables
                 Do not use list formatting in the inspiration column, and put very short catchy section titles in the section column based off the line of inspiration from the poem.
                 The inspirational poem is included for reference and should be provided verbatim in both English and Greek after 
                 the table, with no title, greek lines (color #999) interleaved with the english translation (color #eee), preserving original line breaks using the <br/> tag.   
