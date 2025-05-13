@@ -21,16 +21,36 @@
             width: 100%;
             border: 2px solid #555;
             padding: 10px;
+            z-index: 2;
+            background: transparent !important;
         }
 
         /* Bottom container for the terminal */
-        #terminal-container {
-            height: 40%;
-            width: 100%;
-            border: 2px solid #555;
-            padding: 10px;
-        }
+    #terminal-container {
+  position: relative;
+  overflow: hidden;
+        height: 30%;
+}
 
+/* the console-image sits absolutely under the terminal */
+#terminal-container #console-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* force xterm’s canvas/text layers to be transparent and above the image */
+#terminal-container .xterm,
+#terminal-container .xterm-viewport {
+  position: relative;
+  z-index: 1;
+  background: transparent !important;
+    text-shadow: 1px 1px 2px black;
+}
         #input-container {
             font-family: sans-serif, helvetica, arial;
             width: 100%;
@@ -48,6 +68,7 @@
         #submit-btn {
             padding: 0.5em 1em;
         }
+
     </style>
 
 </head>
@@ -55,16 +76,25 @@
 <!-- The top 60% displays dynamic HTML via an iframe -->
 <iframe id="dynamic-container" frameborder="0"></iframe>
 <!-- The bottom 40% holds the xterm.js terminal -->
-<div id="terminal-container"></div>
-<div id="input-container">
+<div id="terminal-container">
+
+</div>
+<img id="console-image" src="https://xanadu-public.s3.us-west-2.amazonaws.com/summary.jpg" width="100%" alt=""
+style="position:absolute; bottom:0; left:0; width:vw; opacity:50%; object-fit:cover; z-index:0;"/>
+
+<div id="input-container" style="z-index:2; opacity:50%;">
     <form id="urlForm">
         URL:&nbsp;
         <input
                 type="text"
                 id="user-input"
-                value="https://www.dropbox.com/scl/fi/av5ozrpvhgr9qi5j4r1wg/test_image.jpg?rlkey=kqiq9yd7f7wi06z71p8g36dla&raw=1"
+                value="https://xanadu-public.s3.us-west-2.amazonaws.com/summary.jpg"
+
+
         />
-        <button type="submit" id="submit-btn">Submit</button>
+        <button type="submit" id="submit-btn"
+        onclick="document.getElementById('console-image').src = imageUrl;"
+                 >Submit</button>
     </form>
 </div>
 
@@ -89,6 +119,7 @@
     term.loadAddon(fitAddon);
     term.open(document.getElementById('terminal-container'));
     fitAddon.fit();
+
 
     // Helper function to create a reconnecting WebSocket.
     function createWebSocket(url, onMessage, onOpen, onError, onClose) {
@@ -193,6 +224,9 @@
             .then(data => console.log(data))
             .catch(err => console.error("Error:", err));
     });
+
+
+
 </script>
 </body>
 </html>

@@ -9,8 +9,15 @@ make_oracle_pipeline = lambda depends: [
         "prompt": [
             {"type": "text",
              "text": """
+                The attached image provides 14 thumbnails related to the muses of ancient greece who have
+                appeared in the present day (2025). The top row of 7 thumbnails shows the seven muses as 
+                drawn by their modern supplicants. 
+                The bottom row of 7 thumbnails shows seven object offerings to the muses by those same
+                modern-day supplicants.     
                 Write a three-verse poem in ancient greek inspired by the content and form of the images.  
-                Be as specific to the images contents as possible, without discussing that they are images. 
+                Be as specific to the image contents as possible, without discussing that they are images.
+                The goal here is not to talk about the muses, but about the offering of their audience / acolytes. 
+                Focus the poem about the drawings and offerings that have been made, with the muses themselves applied. 
                 Provide only the poem without explanation, elaboration, or translation.
                 """},
 
