@@ -11,7 +11,7 @@
     "firebase_config_path": "xanadu-secret-firebase-forwarder.json",
     "firebase_credential_path": "xanadu-secret-f5762-firebase-adminsdk-9oc2p-1fb50744fa.json",
     "basic_auth_config_path": "xanadu-secret-oracle-basic-auth.json",
-    "html_oracle_waiting":  "<html><body><h1 style=\"color:#fff\">Waiting for the Oracle of Chrysopoeia.<h1></body></html>",
+    "html_oracle_waiting":  "<html><body><h1 style=\"color:#fff\">Submit to the Oracle of Chrysopoeia.<h1></body></html>",
     "html_oracle_busy": "<html><body><h1 style=\"color:#fff\">The Oracle of Chrysopoeia is working.<h1></body></html>",
     "suppress_first_fb_run": true
 }
